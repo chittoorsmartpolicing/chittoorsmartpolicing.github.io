@@ -712,8 +712,7 @@ function applyRole(){
   if(chip){
     if(admin){ chip.innerHTML='🔓 Admin <a href="#" id="roleAction" style="color:var(--accent);text-decoration:none">· sign out</a>';
       chip.className='cmpstatus'; chip.style.display='inline-flex'; }
-    else { chip.innerHTML='🔒 View only <a href="#" id="roleAction" style="color:var(--accent);text-decoration:none">· admin login</a>';
-      chip.className='cmpstatus'; chip.style.display='inline-flex'; }
+    else { chip.innerHTML=''; chip.style.display='none'; }   // hidden for public viewers (admin login still via #admin in URL)
     const a=document.getElementById('roleAction'); if(a) a.onclick=(e)=>{e.preventDefault(); admin?adminLogout():adminLogin();};
   }
 }
