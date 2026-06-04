@@ -494,7 +494,33 @@ table.fr.bdown tbody td{text-align:center!important;vertical-align:middle!import
 table.fr.bdown td.cat-left,
 table.fr.bdown td.nm.cat-left{text-align:left!important;vertical-align:middle!important;white-space:nowrap!important;min-width:0!important;max-width:none!important;width:1px!important;word-break:normal!important;overflow-wrap:normal!important}
 
-/* 4. Raw Data & Score Breakdown — fit to screen: compact Category col, wide centered value cols */
+/* ===== Legacy Data + Other Reports tabs ===== */
+.lg-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:6px}
+@media(max-width:760px){.lg-grid{grid-template-columns:1fr}}
+.lg-field label{display:block;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+.lg-field select{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:12px;background:var(--panel);
+  color:var(--ink);font-size:14px;font-family:inherit;appearance:none;cursor:pointer}
+.lg-field select:focus{outline:none;border-color:var(--accent)}
+.lg-banner{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
+  padding:13px 16px;border-radius:12px;background:linear-gradient(90deg,#eef2ff,#f5f8ff);border:1px solid #d6e0f5;margin-top:4px}
+.lg-banner .lg-cur{font-size:14px;color:var(--ink)}
+.lg-banner .lg-cur b{color:var(--accent)}
+.rp-table{width:100%;border-collapse:collapse;font-size:13.5px}
+.rp-table th{background:#1e2e63;color:#fff;text-align:left;padding:11px 14px;font-weight:600;font-size:12px;letter-spacing:.03em}
+.rp-table th.center,.rp-table td.center{text-align:center}
+.rp-table td{padding:11px 14px;border-bottom:1px solid var(--line);vertical-align:middle}
+.rp-table tr:nth-child(even) td{background:var(--panel2)}
+.rp-name{font-weight:600;color:var(--ink);display:flex;align-items:center;gap:9px}
+.rp-ico{width:30px;height:30px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;font-size:15px;flex:0 0 auto}
+.rp-act{display:inline-flex;gap:7px;flex-wrap:wrap}
+.rp-act a,.rp-act button{font-size:12px;padding:6px 12px;border-radius:9px;border:1px solid var(--line);
+  background:var(--panel);color:var(--accent);text-decoration:none;cursor:pointer;font-family:inherit}
+.rp-act .del{color:#b3261e;border-color:#f3c9c4}
+.rp-drop{border:2px dashed #c7d2e4;border-radius:14px;padding:22px;text-align:center;color:var(--muted);
+  background:var(--panel2);cursor:pointer;transition:.15s}
+.rp-drop:hover,.rp-drop.drag{border-color:var(--accent);background:#eef2ff;color:var(--accent)}
+.rp-empty{padding:26px;text-align:center;color:var(--muted)}
+.lg-note,.rp-note{font-size:12.5px;color:var(--muted);margin-top:10px;line-height:1.5}
 .tbl-scroll{overflow-x:auto}
 table.fr.bdown{table-layout:fixed!important;width:100%!important;min-width:100%!important}
 /* leading parameter-index ("#") column — tight, centered */
@@ -564,6 +590,8 @@ table.fr.bdown tbody td:not(.cat-left):not(.idx-col){
   <button class="tab" data-p="param">📊 Category Ranking</button>
   <button class="tab" data-p="detail">🔍 Police Station Detail</button>
   <button class="tab" data-p="method">📋 Methodology</button>
+  <button class="tab" data-p="legacy">🗄️ Legacy Data</button>
+  <button class="tab" data-p="reports">📁 Other Reports</button>
 </div></div></nav>
 
 <main class="wrap">
@@ -573,6 +601,8 @@ table.fr.bdown tbody td:not(.cat-left):not(.idx-col){
   <section class="panel" id="p-param"></section>
   <section class="panel" id="p-detail"></section>
   <section class="panel" id="p-method"></section>
+  <section class="panel" id="p-legacy"></section>
+  <section class="panel" id="p-reports"></section>
 </main>
 
 <footer class="wrap" id="footer"></footer>
@@ -670,11 +700,11 @@ if(typeof window!=='undefined') window.genHash=s=>{const h=djb2(String(s));conso
 function isAdmin(){ try{return sessionStorage.getItem('ctr_admin')==='1';}catch(e){return false;} }
 function adminLogin(){
   const p=prompt('Enter admin passcode:'); if(p==null) return;
-  if(djb2(p)===ADMIN_HASH){ try{sessionStorage.setItem('ctr_admin','1');}catch(e){}
+  if(djb2(p)===ADMIN_HASH){ try{sessionStorage.setItem('ctr_admin','1');}catch(e){} apiLogin(p);
     toast('Admin mode enabled'); if(location.hash) history.replaceState(null,'',location.pathname+location.search); boot(); }
   else toast('Incorrect passcode');
 }
-function adminLogout(){ try{sessionStorage.removeItem('ctr_admin');}catch(e){} toast('Signed out of admin'); boot(); }
+function adminLogout(){ try{sessionStorage.removeItem('ctr_admin');}catch(e){} apiLogout(); toast('Signed out of admin'); boot(); }
 function applyRole(){
   const admin=isAdmin();
   const tools=document.getElementById('adminTools'); if(tools) tools.style.display=admin?'flex':'none';
@@ -1136,7 +1166,15 @@ function recompute(){
   // so the latest-dated real file becomes the latest report.
   if(weeks.some(w=>!w.isSample)) weeks=weeks.filter(w=>!w.isSample);
   if(!weeks.length){ setSource(false,'No data loaded — upload a report (admin).'); return; }
-  const cur=weeks[weeks.length-1], prev=weeks[weeks.length-2]||null;
+  // Legacy Data tab: if a specific week is selected, make IT the "current" week and
+  // compare against its immediate previous week. With no selection, behave as before
+  // (latest week vs the one before it) — existing behaviour is unchanged.
+  let curIdx = weeks.length-1;
+  if(STATE.selectedWeekKey){
+    const i = weeks.findIndex(w=> w.key===STATE.selectedWeekKey);
+    if(i>=0) curIdx = i;
+  }
+  const cur=weeks[curIdx], prev=weeks[curIdx-1]||null;
 
   STATE.config = Object.assign({
     title:'Chittoor Police Smart Policing', subtitle:'PS Performance Dashboard',
@@ -2146,6 +2184,8 @@ function renderMethod(){
 function switchTab(p){
   document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.p===p));
   document.querySelectorAll('.panel').forEach(s=>s.classList.toggle('active',s.id==='p-'+p));
+  if(p==='legacy') renderLegacy();
+  if(p==='reports') renderReports();
   window.scrollTo({top:0,behavior:'smooth'});
 }
 document.getElementById('tabrow').addEventListener('click',e=>{
@@ -2254,6 +2294,185 @@ if(__dlAll) __dlAll.addEventListener('click',()=>{
 });
 
 // Visiting the page with #admin in the URL opens the admin login prompt
+/* ============================================================= */
+/* ===============  LEGACY DATA  +  OTHER REPORTS  ============== */
+/* ============================================================= */
+
+/* ---- backend detection + tiny API helpers (dual-mode) ---- */
+/* When served by the Flask backend, /api/* responds with JSON. */
+/* On static GitHub Pages those calls fail and we fall back to  */
+/* reading reports/manifest.json (read-only).                  */
+async function apiLogin(passcode){
+  try{ await fetch('/api/login',{method:'POST',credentials:'include',
+        headers:{'Content-Type':'application/json'},body:JSON.stringify({passcode})}); }catch(e){}
+}
+async function apiLogout(){ try{ await fetch('/api/logout',{method:'POST',credentials:'include'}); }catch(e){} }
+
+/* ============================ LEGACY DATA ============================ */
+const MONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'];
+function legacyWeeks(){
+  let ws=[...STATE.weeks].sort((a,b)=> a.date-b.date);
+  if(ws.some(w=>!w.isSample)) ws=ws.filter(w=>!w.isSample);
+  return ws;
+}
+function renderLegacy(){
+  const host=document.getElementById('p-legacy'); if(!host) return;
+  const ws=legacyWeeks();
+  if(!ws.length){ host.innerHTML='<div class="card"><div class="cb"><div class="rp-empty">No weekly data loaded yet.</div></div></div>'; return; }
+  const activeKey = STATE.selectedWeekKey || ws[ws.length-1].key;
+  const active = ws.find(w=>w.key===activeKey) || ws[ws.length-1];
+  const aDate=new Date(active.date);
+  const selYear=aDate.getFullYear(), selMonth=aDate.getMonth();
+  const years=[...new Set(ws.map(w=>new Date(w.date).getFullYear()))].sort((a,b)=>a-b);
+  const monthsInYear=[...new Set(ws.filter(w=>new Date(w.date).getFullYear()===selYear).map(w=>new Date(w.date).getMonth()))].sort((a,b)=>a-b);
+  const weeksInMonth=ws.filter(w=>{const d=new Date(w.date);return d.getFullYear()===selYear&&d.getMonth()===selMonth;}).sort((a,b)=>a.date-b.date);
+  const idx=ws.findIndex(w=>w.key===active.key), prev=ws[idx-1]||null;
+  const isLatest=(active.key===ws[ws.length-1].key);
+
+  host.innerHTML=`
+   <div class="card" style="margin-bottom:16px">
+     <div class="ch"><h3>🗄️ Legacy Data — Browse Historical Weeks</h3></div>
+     <div class="cb">
+       <div class="lg-grid">
+         <div class="lg-field"><label>Year</label>
+           <select id="lgYear">${years.map(y=>`<option value="${y}" ${y===selYear?'selected':''}>${y}</option>`).join('')}</select></div>
+         <div class="lg-field"><label>Month</label>
+           <select id="lgMonth">${monthsInYear.map(m=>`<option value="${m}" ${m===selMonth?'selected':''}>${MONTHS[m]}</option>`).join('')}</select></div>
+         <div class="lg-field"><label>Week / Uploaded File</label>
+           <select id="lgWeek">${weeksInMonth.map(w=>`<option value="${w.key}" ${w.key===active.key?'selected':''}>${w.rangeLabel||w.label}</option>`).join('')}</select></div>
+       </div>
+       <div class="lg-banner">
+         <div class="lg-cur">Now viewing <b>${active.rangeLabel||active.label}</b>${prev?` &nbsp;·&nbsp; compared to <b>${prev.rangeLabel||prev.label}</b>`:' &nbsp;·&nbsp; (no earlier week to compare)'}${isLatest?' &nbsp;·&nbsp; <span style="color:var(--muted)">latest week</span>':''}</div>
+         <button class="btn" id="lgLatest">↩ Return to latest week</button>
+       </div>
+       <div class="lg-note">Pick a <b>Year → Month → Week</b>. The entire dashboard — Rankings, Heatmap, Category Ranking, PS Detail and Methodology — switches to that week and compares it against its <b>immediate previous week only</b>. Open any tab to view the selected week.</div>
+     </div>
+   </div>`;
+
+  const yEl=host.querySelector('#lgYear'), mEl=host.querySelector('#lgMonth'), wEl=host.querySelector('#lgWeek');
+  yEl.onchange=()=>{ const y=+yEl.value; const f=ws.filter(w=>new Date(w.date).getFullYear()===y).sort((a,b)=>a.date-b.date)[0]; if(f) selectLegacyWeek(f.key); };
+  mEl.onchange=()=>{ const y=+yEl.value,m=+mEl.value; const f=ws.filter(w=>{const d=new Date(w.date);return d.getFullYear()===y&&d.getMonth()===m;}).sort((a,b)=>a.date-b.date)[0]; if(f) selectLegacyWeek(f.key); };
+  wEl.onchange=()=>selectLegacyWeek(wEl.value);
+  host.querySelector('#lgLatest').onclick=()=>{ STATE.selectedWeekKey=null; recompute(); renderLegacy(); toast('Showing latest week'); };
+}
+function selectLegacyWeek(key){
+  STATE.selectedWeekKey=key; recompute(); renderLegacy();
+  const w=STATE.weeks.find(x=>x.key===key); if(w) toast('Loaded week '+(w.rangeLabel||w.label));
+}
+
+/* ============================ OTHER REPORTS ============================ */
+const RP_ICONS={pdf:['📕','#fdeaea'],doc:['📘','#e9eefb'],docx:['📘','#e9eefb'],xls:['📗','#e7f5ec'],xlsx:['📗','#e7f5ec'],
+  ppt:['📙','#fdeee0'],pptx:['📙','#fdeee0'],png:['🖼️','#eef0f4'],jpg:['🖼️','#eef0f4'],jpeg:['🖼️','#eef0f4'],gif:['🖼️','#eef0f4'],webp:['🖼️','#eef0f4'],default:['📄','#eef0f4']};
+const RP_VIEWABLE=['pdf','png','jpg','jpeg','gif','webp'];
+function rpExt(n){ const m=String(n||'').toLowerCase().match(/\.([a-z0-9]+)$/); return m?m[1]:''; }
+function rpFmtSize(b){ if(b==null) return ''; if(b<1024) return b+' B'; if(b<1048576) return (b/1024).toFixed(0)+' KB'; return (b/1048576).toFixed(1)+' MB'; }
+function rpFmtDate(d){ if(!d) return ''; const dt=new Date(d); if(isNaN(dt)) return d; return String(dt.getDate()).padStart(2,'0')+'.'+String(dt.getMonth()+1).padStart(2,'0')+'.'+dt.getFullYear()+' '+String(dt.getHours()).padStart(2,'0')+':'+String(dt.getMinutes()).padStart(2,'0'); }
+
+async function renderReports(){
+  const host=document.getElementById('p-reports'); if(!host) return;
+  host.innerHTML='<div class="card"><div class="cb"><div class="rp-empty">Loading reports…</div></div></div>';
+  let mode='static', items=[];
+  try{
+    const r=await fetch('/api/reports',{credentials:'include'});
+    if(!r.ok) throw 0;
+    items=await r.json(); mode='backend';
+  }catch(e){
+    try{ const r=await fetch('reports/manifest.json',{cache:'no-store'});
+      if(r.ok){ const list=await r.json();
+        items=list.map(x=> typeof x==='string'
+          ? {name:x,url:'reports/'+encodeURIComponent(x),date:null,size:null}
+          : {name:x.name||x.file,url:x.url||('reports/'+encodeURIComponent(x.file||x.name)),date:x.date||null,size:x.size||null}); }
+    }catch(_){}
+    mode='static';
+  }
+
+  const admin=isAdmin();
+  const rows = items.length ? items.map(it=>{
+    const ext=rpExt(it.name); const ic=RP_ICONS[ext]||RP_ICONS.default;
+    const view=RP_VIEWABLE.includes(ext);
+    const del = (mode==='backend'&&admin&&it.id!=null)
+      ? `<button class="del" onclick="rpDelete('${String(it.id)}')">🗑 Delete</button>` : '';
+    return `<tr>
+      <td><span class="rp-name"><span class="rp-ico" style="background:${ic[1]}">${ic[0]}</span>${escapeHtml(it.name)}</span></td>
+      <td class="center">${rpFmtDate(it.date)||'—'}</td>
+      <td class="center">${rpFmtSize(it.size)||'—'}</td>
+      <td class="center"><span class="rp-act">
+        ${view?`<a href="${it.url}" target="_blank" rel="noopener">👁 View</a>`:''}
+        <a href="${it.url}" download>⬇ Download</a>${del}
+      </span></td></tr>`;
+  }).join('') : `<tr><td colspan="4"><div class="rp-empty">No reports uploaded yet.</div></td></tr>`;
+
+  let adminBox='';
+  if(admin && mode==='backend'){
+    adminBox=`
+      <div class="card" style="margin-bottom:16px">
+        <div class="ch"><h3>⬆ Upload a Report (admin)</h3></div>
+        <div class="cb">
+          <div class="rp-drop" id="rpDrop">Drag a file here, or click to choose.<br>
+            <span style="font-size:12px">PDF · Word · Excel · PowerPoint · Images — up to 25 MB</span></div>
+          <input id="rpInput" type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.png,.jpg,.jpeg,.gif,.webp" style="display:none">
+          <div class="rp-note">Uploaded files are stored on the server and become visible to <b>all</b> viewers.</div>
+        </div>
+      </div>`;
+  } else if(admin && mode==='static'){
+    adminBox=`
+      <div class="card" style="margin-bottom:16px">
+        <div class="ch"><h3>ℹ Uploading reports (static hosting)</h3></div>
+        <div class="cb"><div class="rp-note">
+          This site is hosted as static files, so reports are published the same way as weekly data:
+          commit your file into the <b>reports/</b> folder of the repository and add its name to
+          <b>reports/manifest.json</b>. To accept uploads <i>through</i> this page instead, run the
+          included Flask backend (see DEPLOYMENT.md). 
+        </div></div>
+      </div>`;
+  }
+
+  host.innerHTML=`
+    ${adminBox}
+    <div class="card">
+      <div class="ch"><h3>📁 Other Reports</h3>
+        <span class="desc">Documents shared with all users${mode==='backend'?'':' · read-only (static)'}</span></div>
+      <div class="cb tbl-scroll" style="padding:0">
+        <table class="rp-table">
+          <thead><tr><th>File Name</th><th class="center">Upload Date</th><th class="center">Size</th><th class="center">Action</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    </div>`;
+
+  if(admin && mode==='backend'){
+    const drop=host.querySelector('#rpDrop'), inp=host.querySelector('#rpInput');
+    drop.onclick=()=>inp.click();
+    inp.onchange=()=>{ if(inp.files&&inp.files[0]) rpUpload(inp.files[0]); };
+    ['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('drag');}));
+    ['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('drag');}));
+    drop.addEventListener('drop',e=>{ const f=e.dataTransfer.files&&e.dataTransfer.files[0]; if(f) rpUpload(f); });
+  }
+}
+async function rpUpload(file){
+  if(!isAdmin()){ toast('Admin only'); return; }
+  if(file.size>25*1048576){ toast('File too large (max 25 MB)'); return; }
+  const fd=new FormData(); fd.append('file',file);
+  toast('Uploading '+file.name+'…');
+  try{
+    const r=await fetch('/api/reports',{method:'POST',credentials:'include',body:fd});
+    if(r.status===401||r.status===403){ toast('Server rejected upload — re-login as admin'); return; }
+    if(!r.ok){ const t=await r.text().catch(()=> ''); toast('Upload failed'+(t?': '+t.slice(0,80):'')); return; }
+    toast('Uploaded'); renderReports();
+  }catch(e){ toast('Upload failed — backend not reachable'); }
+}
+async function rpDelete(id){
+  if(!isAdmin()){ toast('Admin only'); return; }
+  if(!confirm('Delete this report for everyone?')) return;
+  try{
+    const r=await fetch('/api/reports/'+encodeURIComponent(id),{method:'DELETE',credentials:'include'});
+    if(!r.ok){ toast('Delete failed'); return; }
+    toast('Deleted'); renderReports();
+  }catch(e){ toast('Delete failed — backend not reachable'); }
+}
+function escapeHtml(s){ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+
 window.addEventListener('hashchange',()=>{ if(location.hash.toLowerCase()==='#admin' && !isAdmin()) adminLogin(); });
 
 boot().then(()=>{ if(location.hash.toLowerCase()==='#admin' && !isAdmin()) adminLogin(); });
