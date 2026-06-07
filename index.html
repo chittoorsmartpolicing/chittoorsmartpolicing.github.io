@@ -1335,6 +1335,23 @@ if(typeof Chart!=='undefined'){
   Chart.defaults.borderColor='rgba(148,163,184,.22)';
 }
 
+/* inline plugin: draw the numeric value above each vertical bar (Category Ranking) */
+const barTopLabels = {
+  id:'barTopLabels',
+  afterDatasetsDraw(chart){
+    const meta=chart.getDatasetMeta(0); if(!meta) return;
+    const ds=chart.data.datasets[0]; const ctx=chart.ctx;
+    ctx.save();
+    ctx.font="600 9px 'Segoe UI',system-ui,sans-serif";
+    ctx.fillStyle='#566378'; ctx.textAlign='center'; ctx.textBaseline='bottom';
+    meta.data.forEach((bar,i)=>{ const v=ds.data[i];
+      if(v==null||isNaN(v)) return;
+      ctx.fillText(Math.round(v*10)/10, bar.x, bar.y-3);
+    });
+    ctx.restore();
+  }
+};
+
 function heatColor(v){
   if(v==null||isNaN(v)) return null;
   // 0 (red) -> 50 (amber) -> 100 (green)
@@ -1739,7 +1756,7 @@ function renderRankings(){
       <div class="card"><div class="ch"><h3>⚠️ Bottom 5 — Need Attention</h3></div><div class="cb"><div class="podium" style="grid-template-columns:1fr">${podium(bottom,true)}</div></div></div>
     </div>
     <div class="card" style="margin-bottom:16px"><div class="ch"><h3>Composite Score — All ${rows.length} Police Stations (this week)</h3></div>
-      <div class="cb"><div class="chart-box" style="height:${Math.max(340,rows.length*16)}px"><canvas id="c-allscores"></canvas></div></div></div>
+      <div class="cb"><div class="chart-box" style="height:420px"><canvas id="c-allscores"></canvas></div></div></div>
     <div class="card"><div class="ch" style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap"><h3>Full Rankings <span style="color:var(--faint);font-weight:400;font-size:12px">(click a row → Police Station Detail)</span></h3>
         <button class="btn" onclick="exportRankingsExcel()" title="Export full rankings to Excel — landscape, fits one or two pages">⬇ Export to Excel</button></div>
       <div class="cb tbl-scroll"><table class="fr frfull"><thead><tr>${headHtml}</tr></thead><tbody>${body}</tbody></table>
@@ -1754,11 +1771,11 @@ function renderRankings(){
     data:{labels:rows.map(r=>r.name),
       datasets:[{data:rows.map(r=>r.score),
         backgroundColor:rows.map(r=>gradeColorHex(r.grade)),
-        borderRadius:4, barThickness:'flex'}]},
-    options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,
+        borderRadius:4, maxBarThickness:34}]},
+    options:{responsive:true,maintainAspectRatio:false,
       plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`Score ${fmtCell(c.raw)} · ${STATE.byName[c.label].grade}`}}},
-      scales:{x:{min:0,max:100,grid:{color:'rgba(148,163,184,.22)'}},
-              y:{ticks:{font:{size:10},autoSkip:false},grid:{display:false}}},
+      scales:{y:{min:0,max:100,grid:{color:'rgba(148,163,184,.22)'},ticks:{stepSize:25}},
+              x:{ticks:{font:{size:10},autoSkip:false,maxRotation:90,minRotation:55},grid:{display:false}}},
       onClick:(e,el)=>{ if(el.length) openDetail(rows[el[0].index].name); }}
   });
 }
@@ -1958,10 +1975,10 @@ function renderParam(){
       <div class="field"><label>Order</label>
         <select id="paramOrd"><option value="desc">Sort by Best</option><option value="asc">Sort by Least</option></select></div>
     </div>
-    <div class="grid g2" style="margin-bottom:16px">
-      <div class="card"><div class="ch"><h3>🥇 Top 5</h3></div><div class="cb" id="paramTop"></div></div>
-      <div class="card"><div class="ch"><h3>⚠️ Bottom 5</h3></div><div class="cb" id="paramBot"></div></div>
-    </div>
+    <div class="card" style="margin-bottom:16px"><div class="ch" style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+        <h3>📊 Police Station Rankings by Category</h3>
+        <span id="paramChartMeta" style="color:var(--faint);font-weight:400;font-size:12px"></span></div>
+      <div class="cb"><div class="chart-box" style="height:400px"><canvas id="c-paramrank"></canvas></div></div></div>
     <div class="card"><div class="ch" style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap"><h3 id="paramTitle"></h3>
         <button class="btn" onclick="exportParamExcel()" title="Export this parameter ranking to Excel — landscape, fits one or two pages">⬇ Export to Excel</button></div>
       <div class="cb tbl-scroll"><table class="fr prm"><thead><tr>
@@ -1978,15 +1995,28 @@ function drawParam(){
     .sort((a,b)=> ord==='desc'? b.parameters[p]-a.parameters[p] : a.parameters[p]-b.parameters[p]);
   const na=STATE.rows.filter(r=>typeof r.parameters[p]!=='number');
   $('paramTitle').textContent=`${catLabel(p,idx)} — ranked (${ord==='desc'?'best→worst':'worst→best'})`;
-  const mk=(arr,startBad)=>arr.map((r,i)=>{
-    const pr=STATE.paramRanks[p][r.name];
-    return `<div class="prow" onclick="openDetail('${r.name.replace(/'/g,"\\'")}')">
-      <span class="medal">${startBad?'#'+pr:medalFor(pr)}</span>
-      <span class="pn">${r.name}</span>
-      <span class="ps num">${fmtCell(r.parameters[p])}</span></div>`;}).join('');
-  const best=[...STATE.rows].filter(r=>typeof r.parameters[p]==='number').sort((a,b)=>b.parameters[p]-a.parameters[p]);
-  $('paramTop').innerHTML=`<div class="podium" style="grid-template-columns:1fr">${mk(best.slice(0,5),false)}</div>`;
-  $('paramBot').innerHTML=`<div class="podium" style="grid-template-columns:1fr">${mk(best.slice(-5).reverse(),true)}</div>`;
+
+  // Category | Weight | Direction meta line (Image-4 style)
+  const met=(STATE.meta&&STATE.meta[p])?STATE.meta[p]:paramMeta(p);
+  const wt=(STATE.weights&&STATE.weights[p]!=null)?STATE.weights[p]:met.wt;
+  const dirN=met.dir;
+  $('paramChartMeta').textContent=`Category: ${met.cat||catLabel(p,idx)}  |  Weight: ${Math.round(wt*10)/10}%  |  ${dirN>0?'↑ Higher = Better':'↓ Lower = Better'}`;
+
+  // Vertical color-banded bar chart of all stations for this category
+  mkChart('paramrank',$('c-paramrank'),{
+    type:'bar',
+    data:{labels:list.map(r=>r.name),
+      datasets:[{data:list.map(r=>r.parameters[p]),
+        backgroundColor:list.map(r=>gradeColorHex(gradeFor(r.parameters[p]))),
+        borderRadius:4, maxBarThickness:34}]},
+    options:{responsive:true,maintainAspectRatio:false,layout:{padding:{top:14}},
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`${fmtCell(c.raw)} · grade ${gradeFor(c.raw)}`}}},
+      scales:{y:{min:0,max:100,grid:{color:'rgba(148,163,184,.18)'},ticks:{stepSize:25}},
+              x:{ticks:{font:{size:9},autoSkip:false,maxRotation:90,minRotation:55},grid:{display:false}}},
+      onClick:(e,el)=>{ if(el.length) openDetail(list[el[0].index].name); }},
+    plugins:[barTopLabels]
+  });
+
   const rawOf=(r)=> (r.extras && r.extras[p]!=null) ? r.extras[p] : r.parameters[p];
   $('paramBody').innerHTML = list.map(r=>{
     const v=r.parameters[p];
