@@ -1330,6 +1330,8 @@ function heatColorSoft(v){
   const m=0.72; r=Math.round(r+(255-r)*m); g=Math.round(g+(255-g)*m); b=Math.round(b+(255-b)*m);
   return `rgb(${r},${g},${b})`;
 }
+/* round a displayed parameter value to max 2 decimals (drops trailing zeros: 100, 0, 75.14, 66.67) */
+function fmtCell(v){ if(v==null||isNaN(v)) return v; return Number(Number(v).toFixed(2)); }
 /* grade-band text colour + soft tinted background (used in PS Detail, image 1 & 3) */
 function bandColor(v){ return gradeColorHex(gradeFor(v)); }
 function heatBg(v){ const g=gradeFor(v); return {A:'#e6f7ee',B:'#e8f1fd',C:'#fdf3da',D:'#fdeadd',E:'#fbe3e3'}[g]||'#eef1f6'; }
@@ -1702,7 +1704,7 @@ function renderRankings(){
       ${STATE.parameters.map(p=>{const v=r.parameters[p];
         return (v==null||isNaN(v))
           ? `<td class="prm-cell na">—</td>`
-          : `<td class="prm-cell" style="background:${heatColorSoft(v)};color:#243049;font-size:11px;vertical-align:middle">${v}</td>`;}).join('')}
+          : `<td class="prm-cell" style="background:${heatColorSoft(v)};color:#243049;font-size:11px;vertical-align:middle">${fmtCell(v)}</td>`;}).join('')}
     </tr>`).join('');
 
   $('p-rankings').innerHTML = `
@@ -1805,7 +1807,7 @@ function renderHeatmap(){
       ${P.map(p=>{const v=r.parameters[p];
         return (v==null||isNaN(v))
           ? `<td class="prm-cell na" style="background:#eef1f6;color:#9aa7bc;text-align:center;vertical-align:middle">—</td>`
-          : `<td class="prm-cell" style="background:${heatColorSoft(v)};color:#243049;padding:7px 3px;font-family:'Archivo',sans-serif;font-weight:700;font-size:11px;text-align:center;vertical-align:middle;border:1px solid rgba(255,255,255,0.05)">${v}</td>`;}).join('')}
+          : `<td class="prm-cell" style="background:${heatColorSoft(v)};color:#243049;padding:7px 3px;font-family:'Archivo',sans-serif;font-weight:700;font-size:11px;text-align:center;vertical-align:middle;border:1px solid rgba(255,255,255,0.05)">${fmtCell(v)}</td>`;}).join('')}
     </tr>`).join('');
   $('p-heatmap').innerHTML=`
     <div class="sec-h" style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap">
