@@ -1983,8 +1983,8 @@ function drawParam(){
     return `<tr class="clickable" onclick="openDetail('${r.name.replace(/'/g,"\\'")}')">
       <td class="center rk">${medalFor(STATE.paramRanks[p][r.name])}</td>
       <td class="nm ps-left">${r.name}</td>
-      <td class="center num">${rawOf(r)}</td>
-      <td class="center"><span class="normpill" style="background:${heatBg(v)};color:${heatInk(v)}">${v.toFixed(1)}</span></td>
+      <td class="center num">${fmtCell(rawOf(r))}</td>
+      <td class="center"><span class="normpill" style="background:${heatBg(v)};color:${heatInk(v)}">${fmtCell(v)}</span></td>
       <td class="center"><span class="gr ${gradeFor(v)}">${gradeFor(v)}</span></td>
       <td><div class="scorebar"><span class="scorebar-fill" style="width:${Math.max(0,Math.min(100,v))}%;background:${gradeColorHex(gradeFor(v))}"></span><span class="scorebar-val">${Math.round(v)}</span></div></td></tr>`;}).join('')
     + na.map(r=>`<tr class="clickable" onclick="openDetail('${r.name.replace(/'/g,"\\'")}')">
@@ -2016,7 +2016,7 @@ function drawDetail(name){
   // ---- IMAGE 1: profile banner with mini parameter grid ----
   const miniGrid = vals.map(o=>`
     <div class="pscell">
-      <div class="psv" style="color:${bandColor(o.v)}">${o.v}</div>
+      <div class="psv" style="color:${bandColor(o.v)}">${fmtCell(o.v)}</div>
       <div class="psl">${catLabel(o.p,o.idx)}</div>
     </div>`).join('');
 
@@ -2030,8 +2030,8 @@ function drawDetail(name){
     return `<tr>
       <td class="center idx-col">${ri+1}</td>
       <td class="nm cat-left">${catLabel(o.p,o.idx)}</td>
-      <td class="center raw-val-cell num">${raw}</td>
-      <td class="center"><span class="normpill" style="background:${heatBg(o.v)};color:${heatInk(o.v)}">${o.v.toFixed(1)}</span></td>
+      <td class="center raw-val-cell num">${fmtCell(raw)}</td>
+      <td class="center"><span class="normpill" style="background:${heatBg(o.v)};color:${heatInk(o.v)}">${fmtCell(o.v)}</span></td>
       <td class="center num">${wt}%</td>
       <td class="center contrib-cell num" style="color:var(--accent);font-weight:700">${contrib.toFixed(2)}</td></tr>`;
   }).join('');
