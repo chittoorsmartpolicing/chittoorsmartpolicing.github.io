@@ -1952,7 +1952,7 @@ function renderParam(){
       <div class="field"><label>Select Methodology Category</label>
         <select id="paramSel">${P.map((p,i)=>`<option value="${i}">${catLabel(p,i)}</option>`).join('')}</select></div>
       <div class="field"><label>Order</label>
-        <select id="paramOrd"><option value="desc">Best first</option><option value="asc">Worst first</option></select></div>
+        <select id="paramOrd"><option value="desc">Sort by Best</option><option value="asc">Sort by Least</option></select></div>
     </div>
     <div class="grid g2" style="margin-bottom:16px">
       <div class="card"><div class="ch"><h3>🥇 Top 5</h3></div><div class="cb" id="paramTop"></div></div>
@@ -2200,7 +2200,7 @@ function renderMethod(){
         <li><b>FIRs &amp; CS Consumption</b> — <b>2.5 marks</b> for FIR consumption at court + <b>2.5 marks</b> for charge-sheet consumption at court.</li>
         <li><b>eOffice</b> — Scored on disposal and turnaround time. <b>5 marks</b>.</li>
         <li><b>APOLIS</b> — <b>2.5 marks</b> for app downloads in the PS + <b>2.5 marks</b> for APRs in the PS.</li>
-        <li><b>Drone Flying</b> — Scored on flying hours. <b>5 marks</b>. Neutral <b>2.5 marks</b> if there are no drones in the SP unit.</li>
+        <li><b>Drone Flying</b> — Scored on flying hours. <b>5 marks</b>. Neutral <b>2.5 marks</b> if there are no drones in the PS.</li>
         <li><b>Dial112 Tabs</b> — Scored on continuous connectivity. <b>5 marks</b>.</li>
         <li><b>Dial112 Response</b> — Scored on response time. <b>5 marks</b>.</li>
         <li><b>CCTV360 Usage</b> — Login: <b>3 marks</b> (0 marks if login count &lt; 7). Vehicle search: up to <b>1 mark</b>. Person search: up to <b>1 mark</b> (by search count).</li>
@@ -2219,7 +2219,7 @@ function renderMethod(){
       <div class="card"><div class="ch"><h3>🔵 Grade Scale</h3></div><div class="cb">
         <div class="gradescale">${GRADES.map(g=>`<span class="gs" style="background:${gradeColorHex(g.g)}${g.g==='C'?';color:#5a3d00':''}">${g.g}: ${g.label}</span>`).join('')}</div></div></div>
       <div class="card"><div class="ch"><h3>⚠️ Notes</h3></div><div class="cb">
-        <div class="note">Scoring reflects <b>technology-adoption</b> across Smart Policing apps, not crime-outcome data. Update each week by replacing <b>data/CTR_PS_WISE_PERFORMACE.xlsx</b> (same column layout) — rankings, heatmap, trends and grades recompute automatically. To enable Trends &amp; rank-movement, include a <b>Δ</b> column (score change vs previous week).</div></div></div>
+        <div class="note">Scoring reflects <b>technology-adoption</b> across Smart Policing apps, not crime-outcome data. Ranks, heatmap, trends and grades are computed automatically from the latest published week and compared against the immediately previous week.${isAdmin()?` <br><br><b>Admin:</b> Update each week by replacing <b>data/CTR_PS_WISE_PERFORMACE.xlsx</b> (same column layout) — everything recomputes automatically. To enable Trends &amp; rank-movement, include a <b>Δ</b> column (score change vs previous week).`:``}</div></div></div>
     </div>`;
 }
 
