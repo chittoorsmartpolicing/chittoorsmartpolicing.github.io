@@ -176,6 +176,12 @@ canvas{max-width:100%}
 .meth h3{margin:18px 0 8px;color:var(--accent);font-size:16px}
 .meth h3:first-child{margin-top:2px}
 .meth code{background:#eef2fb;color:#2230a0;padding:1px 6px;border-radius:5px;font-size:12.5px}
+.meth ol.mparam{margin:4px 0 10px;padding-left:24px;color:var(--muted);font-size:14px;line-height:1.65}
+.meth ol.mparam li{margin-bottom:8px;padding-left:4px}
+.meth ol.mparam li b{color:var(--ink)}
+.meth ol.mparam li .na{color:var(--faint);font-style:italic}
+.meth ul.mkey{margin:4px 0 4px;padding-left:20px;color:var(--muted);font-size:14px;line-height:1.65}
+.meth ul.mkey li{margin-bottom:7px}
 .gradescale{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
 .gradescale .gs{padding:8px 14px;border-radius:10px;font-family:'Archivo';font-weight:700;font-size:13px;color:#fff}
 .note{background:#fffaf0;border:1px solid #f0d9a0;border-radius:12px;padding:13px 16px;color:#7a5a13;font-size:13px;line-height:1.6}
@@ -2166,17 +2172,6 @@ function renderMethod(){
 
   $('p-method').innerHTML=`
     <div class="sec-h"><h2>📋 Methodology</h2><span class="desc">How scores, ranks & movements are produced</span></div>
-    <div class="card meth" style="margin-bottom:16px"><div class="cb">
-      <h3>Composite Scoring</h3>
-      <p>${STATE.rows.length} Police Stations are evaluated across <b>${P.length} methodology categories</b> drawn from the Smart Policing applications. Each methodology-category value is on a normalised <b>0–100</b> scale (higher = better; lower-is-better metrics are inverted). The composite score is the <b>weighted sum</b> Σ(value × weight) of all methodology categories, so a station scoring 100 on every category would reach 100.0.</p>
-      <p>Weights come straight from the “Wt →” row in the source workbook (shown below) and total ${total.toFixed(1)}%. If a file instead supplies a precomputed <b>Score</b> column, that official composite is used as-is.</p>
-      <h3>Rank Calculation</h3>
-      <p>Police Stations are sorted by composite score (descending) for the current rank. The <b>previous week</b> is the prior dated file in your loaded history; the dashboard matches stations by name and computes <b>rank movement</b> = previous rank − current rank (▲ climbed, ▼ dropped) and the score change.</p>
-      <h3>Score Normalisation</h3>
-      <p>Values arrive normalised to 0–100. Percentage columns supplied as fractions (e.g. 0.5) are scaled to 0–100. Missing values show as “—” and are excluded from a station's weighted sum rather than counted as zero.</p>
-      <h3>Methodology Category Ranking</h3>
-      <p>For each methodology category, every station is ranked independently by its normalised value — powering the Methodology Category Ranking module and the per-station rank in Police Station Detail.</p>
-    </div></div>
 
     <div class="card" style="margin-bottom:16px"><div class="ch"><h3>📊 Methodology Categories &amp; Weights</h3></div>
       <div class="cb tbl-scroll" style="padding:0"><table><thead><tr>
@@ -2185,6 +2180,40 @@ function renderMethod(){
       </tr></thead><tbody>${wrows}
       <tr class="total-row"><td></td><td>TOTAL</td><td></td><td class="center num">${total.toFixed(1)}%</td><td></td><td></td></tr>
       </tbody></table></div></div>
+
+    <div class="card meth" style="margin-bottom:16px"><div class="cb">
+      <h3>How marks are awarded — per parameter</h3>
+      <ol class="mparam">
+        <li><b>MedLEaPR PME</b> — Counts PME cases and checks whether they were updated. Full <b>5 marks</b> if all PME completed, or <b>5 marks</b> if no cases reported that week.</li>
+        <li><b>MedLEaPR MLC</b> — Counts MLC cases and checks whether they were updated. Full <b>5 marks</b> if all MLC completed, or <b>5 marks</b> if no cases reported that week.</li>
+        <li><b>NATGRID</b> — <span class="na">Not scored — does not fall under PS category.</span></li>
+        <li><b>DGP Dashboard</b> — <b>5 marks</b> if the PS SHO submits remarks.</li>
+        <li><b>CCTNS Overall</b> — Scored on forms per FIR. <b>5 marks</b> weightage.</li>
+        <li><b>CCTNS IIF 1–7</b> — Scored on forms entered for crimes reported that week (2.5% weightage). <b>1.25 marks</b> if no cases reported that week.</li>
+        <li><b>CCTNS IIF 8–15</b> — <span class="na">Not scored — these reports are auto-generated.</span></li>
+        <li><b>Zero FIRs</b> — <b>5 marks</b> if none pending or none reported.</li>
+        <li><b>Citizen Portal</b> — Scored on disposal. <b>5 marks</b> weightage.</li>
+        <li><b>eSakshya (SID%)</b> — Scored on final PS compliance. <b>5 marks</b> weightage.</li>
+        <li><b>CriMAC</b> — CriMAC alert count must be &ge; cases reported in that PS during the week.</li>
+        <li><b>CEIR Score</b> — Performance-based. <b>5 marks</b>.</li>
+        <li><b>eProsecution</b> — <span class="na">Not scored — these reports are auto-generated.</span></li>
+        <li><b>FIRs &amp; CS Consumption</b> — <b>2.5 marks</b> for FIR consumption at court + <b>2.5 marks</b> for charge-sheet consumption at court.</li>
+        <li><b>eOffice</b> — Scored on disposal and turnaround time. <b>5 marks</b>.</li>
+        <li><b>APOLIS</b> — <b>2.5 marks</b> for app downloads in the PS + <b>2.5 marks</b> for APRs in the PS.</li>
+        <li><b>Drone Flying</b> — Scored on flying hours. <b>5 marks</b>. Neutral <b>2.5 marks</b> if there are no drones in the SP unit.</li>
+        <li><b>Dial112 Tabs</b> — Scored on continuous connectivity. <b>5 marks</b>.</li>
+        <li><b>Dial112 Response</b> — Scored on response time. <b>5 marks</b>.</li>
+        <li><b>CCTV360 Usage</b> — Login: <b>3 marks</b> (0 marks if login count &lt; 7). Vehicle search: up to <b>1 mark</b>. Person search: up to <b>1 mark</b> (by search count).</li>
+        <li><b>News360AI</b> — <span class="na">Not scored — these reports are auto-generated.</span></li>
+      </ol>
+      <h3>Key principles</h3>
+      <ul class="mkey">
+        <li>Full marks are awarded where compliance is complete.</li>
+        <li>Neutral marks are provided where no activity exists due to non-applicability (e.g. no cases reported, no drones available).</li>
+        <li>Performance-based scoring is used for disposal, response time, usage, flying hours, searches, and compliance percentages.</li>
+        <li><b>NATGRID</b>, <b>CCTNS IIF 8–15</b>, <b>eProsecution</b>, and <b>News360AI</b> are currently excluded from scoring.</li>
+      </ul>
+    </div></div>
 
     <div class="grid g2">
       <div class="card"><div class="ch"><h3>🔵 Grade Scale</h3></div><div class="cb">
