@@ -2121,7 +2121,7 @@ function drawDetail(name){
   // radar (image 2 left)
   mkChart('radar',$('c-radar'),{type:'radar',
     data:{labels:vals.map(o=>catLabel(o.p,o.idx)),datasets:[{label:r.name,data:vals.map(o=>o.v),
-      backgroundColor:'rgba(99,191,243,.32)',borderColor:'#3f9fe6',pointBackgroundColor:'#3f9fe6',
+      backgroundColor:'rgba(46,196,150,.32)',borderColor:'#23b187',pointBackgroundColor:'#23b187',
       pointBorderColor:'#fff',pointRadius:4,pointHoverRadius:5,borderWidth:2}]},
     options:{responsive:true,maintainAspectRatio:false,animation:{duration:600},plugins:{legend:{display:false}},
       scales:{r:{min:0,max:100,ticks:{display:true,stepSize:25,font:{size:8},color:'#9fb2cc',backdropColor:'transparent'},
