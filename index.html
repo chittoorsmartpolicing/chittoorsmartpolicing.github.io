@@ -631,11 +631,11 @@ table.fr.bdown tbody td:not(.cat-left):not(.idx-col){
 
 /* ---- Grade thresholds (single source of truth) ---- */
 const GRADES = [
-  {g:'A', min:75, color:'var(--a)', label:'≥ 75'},
-  {g:'B', min:62, color:'var(--b)', label:'62–74'},
-  {g:'C', min:49, color:'var(--c)', label:'49–61'},
-  {g:'D', min:36, color:'var(--d)', label:'36–48'},
-  {g:'E', min:0,  color:'var(--e)', label:'< 36'},
+  {g:'A', min:62, color:'var(--a)', label:'≥ 62'},
+  {g:'B', min:51, color:'var(--b)', label:'51–61.99'},
+  {g:'C', min:40, color:'var(--c)', label:'40–50.99'},
+  {g:'D', min:30, color:'var(--d)', label:'30–39.99'},
+  {g:'E', min:0,  color:'var(--e)', label:'< 30'},
 ];
 function gradeFor(score){ for(const x of GRADES){ if(score>=x.min) return x.g; } return 'E'; }
 function gradeColor(g){ return (GRADES.find(x=>x.g===g)||GRADES[4]).color; }
