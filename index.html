@@ -1481,13 +1481,14 @@ function exportParamExcel(){
   const p=STATE.parameters[idx];
   const list=STATE.rows.filter(r=>typeof r.parameters[p]==='number')
     .sort((a,b)=> ord==='desc'? b.parameters[p]-a.parameters[p] : a.parameters[p]-b.parameters[p]);
-  const rawOf=(r)=> (r.extras && r.extras[p]!=null) ? r.extras[p] : r.parameters[p];
+  const met=(STATE.meta&&STATE.meta[p])?STATE.meta[p]:paramMeta(p);
+  const wt=(STATE.weights&&STATE.weights[p]!=null)?STATE.weights[p]:met.wt;
   const rows=list.map(r=>{ const v=r.parameters[p];
-    return ['#'+STATE.paramRanks[p][r.name], r.name, rawOf(r), Number(v.toFixed(1)), gradeFor(v), Math.round(v)]; });
+    return ['#'+STATE.paramRanks[p][r.name], r.name, Number((v*wt/100).toFixed(2)), Number(v.toFixed(1)), gradeFor(v), Math.round(v)]; });
   exportGenericExcel({ sheetName:'Methodology Category Ranking',
     title:'Chittoor Police Smart Policing — '+catLabel(p,idx)+' (ranked '+(ord==='desc'?'best→worst':'worst→best')+')',
     subtitle:'Per-category ranking across '+list.length+' police stations  ·  normalized score 0–100',
-    headers:['Rank','Police Station','Raw Value','Score (0–100)','Grade','Score'],
+    headers:['Rank','Police Station','Contribution Value','Score (0–100)','Grade','Score'],
     aligns:['center','left','center','center','center','center'],
     widths:[8,30,16,13,8,8], rows, freezeCols:2, orientation:'portrait',
     fileName:'Chittoor_Category_'+catLabel(p,idx).replace(/[^\w]+/g,'_') });
@@ -1982,7 +1983,7 @@ function renderParam(){
     <div class="card"><div class="ch" style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap"><h3 id="paramTitle"></h3>
         <button class="btn" onclick="exportParamExcel()" title="Export this parameter ranking to Excel — landscape, fits one or two pages">⬇ Export to Excel</button></div>
       <div class="cb tbl-scroll"><table class="fr prm"><thead><tr>
-        <th class="center">Rank</th><th class="ps-left">Police Station</th><th class="center">Raw Value</th>
+        <th class="center">Rank</th><th class="ps-left">Police Station</th><th class="center">Contribution Value</th>
         <th class="center">Score (0–100)</th><th class="center">Grade</th><th>Score Bar</th>
       </tr></thead><tbody id="paramBody"></tbody></table></div></div>`;
   $('paramSel').onchange=drawParam; $('paramOrd').onchange=drawParam;
@@ -2023,7 +2024,7 @@ function drawParam(){
     return `<tr class="clickable" onclick="openDetail('${r.name.replace(/'/g,"\\'")}')">
       <td class="center rk">${medalFor(STATE.paramRanks[p][r.name])}</td>
       <td class="nm ps-left">${r.name}</td>
-      <td class="center num">${fmtCell(rawOf(r))}</td>
+      <td class="center num" style="color:var(--accent);font-weight:700">${(v*wt/100).toFixed(2)}</td>
       <td class="center"><span class="normpill" style="background:${heatBg(v)};color:${heatInk(v)}">${fmtCell(v)}</span></td>
       <td class="center"><span class="gr ${gradeFor(v)}">${gradeFor(v)}</span></td>
       <td><div class="scorebar"><span class="scorebar-fill" style="width:${Math.max(0,Math.min(100,v))}%;background:${gradeColorHex(gradeFor(v))}"></span><span class="scorebar-val">${Math.round(v)}</span></div></td></tr>`;}).join('')
