@@ -1746,7 +1746,7 @@ function renderRankings(){
         backgroundColor:rows.map(r=>gradeColorHex(r.grade)),
         borderRadius:4, barThickness:'flex'}]},
     options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,
-      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`Score ${c.raw} · ${STATE.byName[c.label].grade}`}}},
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`Score ${fmtCell(c.raw)} · ${STATE.byName[c.label].grade}`}}},
       scales:{x:{min:0,max:100,grid:{color:'rgba(148,163,184,.22)'}},
               y:{ticks:{font:{size:10},autoSkip:false},grid:{display:false}}},
       onClick:(e,el)=>{ if(el.length) openDetail(rows[el[0].index].name); }}
@@ -1795,7 +1795,7 @@ function renderOverallRankings(seg){
     data:{labels:ov.map(o=>o.name),datasets:[{data:ov.map(o=>o.avg),
       backgroundColor:ov.map(o=>gradeColorHex(o.grade)),borderRadius:4}]},
     options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,
-      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`Avg ${c.raw} over ${ov[c.dataIndex].weeks} wk`}}},
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`Avg ${fmtCell(c.raw)} over ${ov[c.dataIndex].weeks} wk`}}},
       scales:{x:{min:0,max:100,grid:{color:'rgba(148,163,184,.22)'}},y:{ticks:{font:{size:10},autoSkip:false},grid:{display:false}}},
       onClick:(e,el)=>{ if(el.length) openDetail(ov[el[0].index].name); }}
   });
@@ -1888,7 +1888,7 @@ function renderTrends(){
         backgroundColor:rows.map(r=>gradeColorHex(r.grade)),
         borderRadius:4, maxBarThickness:34}]},
     options:{responsive:true,maintainAspectRatio:false,
-      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`Score ${c.raw} · ${STATE.byName[c.label].grade}`}}},
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`Score ${fmtCell(c.raw)} · ${STATE.byName[c.label].grade}`}}},
       scales:{x:{ticks:{font:{size:9},maxRotation:90,minRotation:55,autoSkip:false},grid:{display:false}},
               y:{min:0,suggestedMax:90,grid:{color:'rgba(148,163,184,.18)'}}},
       onClick:(e,el)=>{ if(el.length) openDetail(rows[el[0].index].name); }}
@@ -1929,7 +1929,7 @@ function renderTrendsImproved(seg){
         backgroundColor:improved.map(r=>r.scoreChg>0?'#16a36a':r.scoreChg<0?'#ec4848':'#7e93b0'),
         borderRadius:3, maxBarThickness:30}]},
     options:{responsive:true,maintainAspectRatio:false,
-      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`${c.raw>0?'+':''}${c.raw} pts`}}},
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`${c.raw>0?'+':''}${fmtCell(c.raw)} pts`}}},
       scales:{x:{ticks:{font:{size:9},maxRotation:90,minRotation:55,autoSkip:false},grid:{display:false}},
               y:{grid:{color:'rgba(148,163,184,.18)'},title:{display:true,text:'score change vs '+pw}}},
       onClick:(e,el)=>{ if(el.length) openDetail(improved[el[0].index].name); }}
@@ -1973,7 +1973,7 @@ function drawParam(){
     return `<div class="prow" onclick="openDetail('${r.name.replace(/'/g,"\\'")}')">
       <span class="medal">${startBad?'#'+pr:medalFor(pr)}</span>
       <span class="pn">${r.name}</span>
-      <span class="ps num">${r.parameters[p]}</span></div>`;}).join('');
+      <span class="ps num">${fmtCell(r.parameters[p])}</span></div>`;}).join('');
   const best=[...STATE.rows].filter(r=>typeof r.parameters[p]==='number').sort((a,b)=>b.parameters[p]-a.parameters[p]);
   $('paramTop').innerHTML=`<div class="podium" style="grid-template-columns:1fr">${mk(best.slice(0,5),false)}</div>`;
   $('paramBot').innerHTML=`<div class="podium" style="grid-template-columns:1fr">${mk(best.slice(-5).reverse(),true)}</div>`;
@@ -2104,7 +2104,7 @@ function drawDetail(name){
         backgroundColor:vals.map(o=>gradeColorHex(gradeFor(o.v))),borderRadius:4,barThickness:20}]},
       options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,
         layout:{padding:{right:32}},
-        plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>{const o=vals[c.dataIndex];return `${o.v} · rank #${o.rank} of ${M}`;}}}},
+        plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>{const o=vals[c.dataIndex];return `${fmtCell(o.v)} · rank #${o.rank} of ${M}`;}}}},
         scales:{
           x:{min:0,max:110,grid:{color:'rgba(148,163,184,.22)'},ticks:{callback:v=>v<=100?v:'',font:{size:11}},border:{display:false}},
           y:{ticks:{font:{size:fontSize},autoSkip:false,padding:6},grid:{display:false},afterFit(axis){axis.width=yAxisWidth;}}}},
@@ -2122,7 +2122,7 @@ function drawDetail(name){
               ctx.textBaseline='middle';
               ctx.font='bold 11px "Segoe UI",system-ui,sans-serif';
               ctx.fillStyle='#243049';
-              ctx.fillText(val,bar.x+6,bar.y);
+              ctx.fillText(String(fmtCell(val)),bar.x+6,bar.y);
               ctx.restore();
             });
           });
