@@ -2276,7 +2276,7 @@ function renderMethod(){
         <li><b>Drone Flying</b> — Scored on flying hours. <b>5 marks</b>. Neutral <b>2.5 marks</b> if there are no drones in the PS.</li>
         <li><b>Dial112 Tabs</b> — Scored on continuous connectivity. <b>5 marks</b>.</li>
         <li><b>Dial112 Response</b> — Scored on response time. <b>5 marks</b>.</li>
-        <li><b>CCTV360 Usage</b> — Login: <b>3 marks</b> (0 marks if login count &lt; 7). Vehicle search: up to <b>1 mark</b>. Person search: up to <b>1 mark</b> (by search count).</li>
+        <li><b>CCTV360 Usage</b> — Login: <b>5 marks</b> (0 marks if login count &lt; 1). Scored on login count, scaled so <b>10 logins = full marks</b> and capped at 100%. <span class="na">Formula: IF(login=0, 0, ROUND(MIN(100, login&times;10), 0)).</span></li>
         <li><b>News360AI</b> — <span class="na">Not scored — these reports are auto-generated.</span></li>
       </ol>
       <h3>Key principles</h3>
