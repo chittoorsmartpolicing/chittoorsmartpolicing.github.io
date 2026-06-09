@@ -531,6 +531,16 @@ table.fr.bdown td.nm.cat-left{text-align:left!important;vertical-align:middle!im
 .rp-drop:hover,.rp-drop.drag{border-color:var(--accent);background:#eef2ff;color:var(--accent)}
 .rp-empty{padding:26px;text-align:center;color:var(--muted)}
 .lg-note,.rp-note{font-size:12.5px;color:var(--muted);margin-top:10px;line-height:1.5}
+.rp-card{width:min(1080px,96vw)}
+.rp-body{margin-top:12px;max-height:72vh;overflow:auto;border:1px solid var(--line);border-radius:10px;background:#fff}
+.rp-frame{width:100%;height:70vh;border:0;display:block;background:#fff}
+.rp-imgwrap{display:flex;justify-content:center;padding:14px}
+.rp-imgwrap img{max-width:100%;height:auto;border-radius:8px}
+.rp-sheetbar{padding:10px 12px;font-size:12.5px;color:var(--muted);border-bottom:1px solid var(--line)}
+table.rp-xl{border-collapse:collapse;font-size:12.5px;width:max-content;min-width:100%}
+table.rp-xl th,table.rp-xl td{border:1px solid var(--line);padding:6px 10px;text-align:left;white-space:nowrap;color:var(--ink)}
+table.rp-xl th{background:#1e2e63;color:#fff;font-weight:600}
+table.rp-xl tr:nth-child(even) td{background:var(--panel2)}
 .tbl-scroll{overflow-x:auto}
 table.fr.bdown{table-layout:fixed!important;width:100%!important;min-width:100%!important}
 /* leading parameter-index ("#") column — tight, centered */
@@ -2441,7 +2451,11 @@ function selectLegacyWeek(key){
 /* ============================ OTHER REPORTS ============================ */
 const RP_ICONS={pdf:['📕','#fdeaea'],doc:['📘','#e9eefb'],docx:['📘','#e9eefb'],xls:['📗','#e7f5ec'],xlsx:['📗','#e7f5ec'],
   ppt:['📙','#fdeee0'],pptx:['📙','#fdeee0'],png:['🖼️','#eef0f4'],jpg:['🖼️','#eef0f4'],jpeg:['🖼️','#eef0f4'],gif:['🖼️','#eef0f4'],webp:['🖼️','#eef0f4'],default:['📄','#eef0f4']};
-const RP_VIEWABLE=['pdf','png','jpg','jpeg','gif','webp'];
+const RP_VIEWABLE=['pdf','png','jpg','jpeg','gif','webp']; // rendered natively (iframe / img)
+const RP_SHEET=['xls','xlsx','csv'];                       // rendered as a table via SheetJS
+const RP_OFFICE=['doc','docx','ppt','pptx'];               // rendered via Office Online viewer
+function rpCanView(ext){ return RP_VIEWABLE.includes(ext)||RP_SHEET.includes(ext)||RP_OFFICE.includes(ext); }
+let RP_ITEMS=[]; // current list, so the viewer can look files up by row index
 function rpExt(n){ const m=String(n||'').toLowerCase().match(/\.([a-z0-9]+)$/); return m?m[1]:''; }
 function rpFmtSize(b){ if(b==null) return ''; if(b<1024) return b+' B'; if(b<1048576) return (b/1024).toFixed(0)+' KB'; return (b/1048576).toFixed(1)+' MB'; }
 function rpFmtDate(d){ if(!d) return ''; const dt=new Date(d); if(isNaN(dt)) return d; return String(dt.getDate()).padStart(2,'0')+'.'+String(dt.getMonth()+1).padStart(2,'0')+'.'+dt.getFullYear()+' '+String(dt.getHours()).padStart(2,'0')+':'+String(dt.getMinutes()).padStart(2,'0'); }
@@ -2465,9 +2479,10 @@ async function renderReports(){
   }
 
   const admin=isAdmin();
-  const rows = items.length ? items.map(it=>{
+  RP_ITEMS = items;
+  const rows = items.length ? items.map((it,i)=>{
     const ext=rpExt(it.name); const ic=RP_ICONS[ext]||RP_ICONS.default;
-    const view=RP_VIEWABLE.includes(ext);
+    const view=rpCanView(ext);
     const del = (mode==='backend'&&admin&&it.id!=null)
       ? `<button class="del" onclick="rpDelete('${String(it.id)}')">🗑 Delete</button>` : '';
     return `<tr>
@@ -2475,7 +2490,7 @@ async function renderReports(){
       <td class="center">${rpFmtDate(it.date)||'—'}</td>
       <td class="center">${rpFmtSize(it.size)||'—'}</td>
       <td class="center"><span class="rp-act">
-        ${view?`<a href="${it.url}" target="_blank" rel="noopener">👁 View</a>`:''}
+        ${view?`<button type="button" class="rp-view" data-idx="${i}">👁 View</button>`:''}
         <a href="${it.url}" download>⬇ Download</a>${del}
       </span></td></tr>`;
   }).join('') : `<tr><td colspan="4"><div class="rp-empty">No reports uploaded yet.</div></td></tr>`;
@@ -2518,6 +2533,10 @@ async function renderReports(){
       </div>
     </div>`;
 
+  host.querySelectorAll('.rp-view').forEach(b=>{
+    b.addEventListener('click',()=>{ const it=RP_ITEMS[+b.dataset.idx]; if(it) rpView(it); });
+  });
+
   if(admin && mode==='backend'){
     const drop=host.querySelector('#rpDrop'), inp=host.querySelector('#rpInput');
     drop.onclick=()=>inp.click();
@@ -2550,6 +2569,78 @@ async function rpDelete(id){
 }
 function escapeHtml(s){ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
+/* ---------- Report preview modal (PDF / image / Excel / Office) ---------- */
+function rpCloseViewer(){
+  const m=document.getElementById('rpModal'); if(m) m.style.display='none';
+  const b=document.getElementById('rpBody'); if(b) b.innerHTML='';
+}
+async function rpView(it){
+  const m=document.getElementById('rpModal'); if(!m) return;
+  const title=document.getElementById('rpTitle'), body=document.getElementById('rpBody');
+  const ext=rpExt(it.name);
+  let abs; try{ abs=new URL(it.url, location.href).href; }catch(_){ abs=it.url; } // absolute URL for Office viewer
+  const dl=`<div class="rp-note"><a href="${it.url}" download>⬇ Download instead</a></div>`;
+  title.textContent=it.name||'Preview';
+  body.innerHTML='<div class="rp-empty">Loading preview…</div>';
+  m.style.display='flex';
+  try{
+    if(RP_VIEWABLE.includes(ext)){
+      body.innerHTML = ext==='pdf'
+        ? `<iframe class="rp-frame" src="${abs}#toolbar=1"></iframe>`
+        : `<div class="rp-imgwrap"><img src="${abs}" alt="${escapeHtml(it.name)}"></div>`;
+    }else if(RP_SHEET.includes(ext)){
+      const buf=await (await fetch(it.url,{cache:'no-store'})).arrayBuffer();
+      const wb=XLSX.read(buf,{type:'array'});
+      rpRenderSheets(wb, body);
+    }else if(RP_OFFICE.includes(ext)){
+      const src='https://view.officeapps.live.com/op/embed.aspx?src='+encodeURIComponent(abs);
+      body.innerHTML=`<iframe class="rp-frame" src="${src}"></iframe>
+        <div class="rp-note">Word/PowerPoint previews load via Microsoft’s viewer and need a public URL. If it stays blank, use Download.</div>`;
+    }else{
+      body.innerHTML=`<div class="rp-empty">No inline preview for .${escapeHtml(ext)} files.${dl}</div>`;
+    }
+  }catch(e){
+    body.innerHTML=`<div class="rp-empty">Couldn’t load a preview.<br><small>${escapeHtml(String((e&&e.message)||e))}</small>${dl}</div>`;
+  }
+}
+function rpRenderSheets(wb, body){
+  const names=(wb&&wb.SheetNames)||[];
+  if(!names.length){ body.innerHTML='<div class="rp-empty">Workbook has no sheets.</div>'; return; }
+  const sel = names.length>1
+    ? `<div class="rp-sheetbar">Sheet: <select id="rpSheetSel">${
+        names.map((n,i)=>`<option value="${i}">${escapeHtml(n)}</option>`).join('')}</select></div>`
+    : '';
+  body.innerHTML=`${sel}<div id="rpSheet" class="rp-sheet"></div>`;
+  const draw=(i)=>{
+    const ws=wb.Sheets[names[i]];
+    const aoa=XLSX.utils.sheet_to_json(ws,{header:1,raw:false,defval:''});
+    const host=document.getElementById('rpSheet');
+    if(!aoa.length){ host.innerHTML='<div class="rp-empty">This sheet is empty.</div>'; return; }
+    const maxCols=aoa.reduce((m,r)=>Math.max(m,(r||[]).length),0);
+    let html='<table class="rp-xl"><tbody>';
+    aoa.forEach((row,r)=>{
+      html+='<tr>';
+      for(let c=0;c<maxCols;c++){
+        const cell=(row&&row[c]!=null)?escapeHtml(String(row[c])):'';
+        html += (r===0) ? `<th>${cell}</th>` : `<td>${cell}</td>`;
+      }
+      html+='</tr>';
+    });
+    html+='</tbody></table>';
+    host.innerHTML=html;
+  };
+  draw(0);
+  const ss=document.getElementById('rpSheetSel');
+  if(ss) ss.addEventListener('change',()=>draw(+ss.value));
+}
+document.addEventListener('DOMContentLoaded',()=>{
+  const m=document.getElementById('rpModal');
+  document.getElementById('rpClose')?.addEventListener('click',rpCloseViewer);
+  document.getElementById('rpCloseBtn')?.addEventListener('click',rpCloseViewer);
+  m?.addEventListener('click',e=>{ if(e.target===m) rpCloseViewer(); });
+  document.addEventListener('keydown',e=>{ if(e.key==='Escape') rpCloseViewer(); });
+});
+
 
 window.addEventListener('hashchange',()=>{ if(location.hash.toLowerCase()==='#admin' && !isAdmin()) adminLogin(); });
 
@@ -2570,6 +2661,20 @@ boot().then(()=>{ if(location.hash.toLowerCase()==='#admin' && !isAdmin()) admin
       <label class="btn gold" for="fmFileInput">⬆ Import another Excel</label>
       <input type="file" id="fmFileInput" accept=".xlsx,.xls,.csv,.json" multiple hidden>
       <button class="btn" id="fmDone">Done</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Report viewer modal (PDF / Image / Excel / Office) ===== -->
+<div id="rpModal" class="fm-overlay" style="display:none" role="dialog" aria-modal="true" aria-label="Report preview">
+  <div class="fm-card rp-card">
+    <div class="fm-head">
+      <h3 id="rpTitle">Preview</h3>
+      <button class="fm-x" id="rpClose" aria-label="Close">×</button>
+    </div>
+    <div id="rpBody" class="rp-body"></div>
+    <div class="fm-foot">
+      <button class="btn" id="rpCloseBtn">Close</button>
     </div>
   </div>
 </div>
