@@ -41,6 +41,27 @@ h1,h2,h3,h4{font-family:'Archivo',sans-serif;letter-spacing:-.02em;line-height:1
 .wrap{max-width:1320px;margin:0 auto;padding:0 22px}
 .num{font-variant-numeric:tabular-nums}
 
+/* ===== SCROLLING NOTICE TICKER ===== */
+.sp-ticker{
+  width:100%;overflow:hidden;white-space:nowrap;
+  background:linear-gradient(115deg,#16235c 0%,#243a9e 54%,#3447c7 100%);
+  border-bottom:3px solid var(--gold);
+  box-shadow:var(--shadow-sm);
+}
+.sp-ticker__track{
+  display:inline-flex;align-items:center;
+  will-change:transform;animation:sp-scroll 26s linear infinite;
+}
+.sp-ticker__item{
+  padding:9px 3rem;color:#eef2ff;
+  font-family:'Public Sans',system-ui,sans-serif;
+  font-weight:600;font-size:14.5px;letter-spacing:.3px;
+}
+.sp-ticker:hover .sp-ticker__track{animation-play-state:paused}
+@keyframes sp-scroll{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+@media(max-width:600px){.sp-ticker__item{font-size:12.5px;padding:8px 2rem}}
+@media(prefers-reduced-motion:reduce){.sp-ticker__track{animation-duration:60s}}
+
 /* ===== HEADER (blue rounded card) ===== */
 header.top{position:relative;padding-bottom:4px}
 .hbar{height:4px;border-radius:0 0 4px 4px;background:linear-gradient(90deg,var(--gold),var(--gold-soft),var(--gold))}
@@ -562,6 +583,13 @@ table.fr.bdown tbody td:not(.cat-left):not(.idx-col){
 </style>
 </head>
 <body>
+
+<div class="sp-ticker" role="status" aria-label="Announcements">
+  <div class="sp-ticker__track">
+    <span class="sp-ticker__item">📢 Smart Policing reports will be updated every Wednesday</span>
+    <span class="sp-ticker__item" aria-hidden="true">📢 Smart Policing reports will be updated every Wednesday</span>
+  </div>
+</div>
 
 <header class="top">
   <div class="hbar"></div>
