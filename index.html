@@ -1080,7 +1080,7 @@ function addWeek(data, filename, source, published, isSample){
 function freezeWeek(entry){
   try{
     const comp=computeComposite(entry.data);
-    comp.sort((a,b)=> (b.score-a.score) || a.name.localeCompare(b.name));
+    comp.sort(cmpScore('score'));
     const frozen={};
     comp.forEach((s,i)=>{ frozen[normName(s.name)]={name:s.name, score:s.score, rank:i+1, grade:s.grade}; });
     entry.frozen=frozen;
@@ -1156,6 +1156,42 @@ function openFilesModal(){
 function closeFilesModal(){ const m=document.getElementById('filesModal'); if(m) m.style.display='none'; }
 
 function clearWeeks(){ __memStaged=null; try{localStorage.removeItem(LS_KEY);}catch(e){} idbSet(LS_KEY,[]); boot(); }
+
+/* ===== Ranking tie-breaker =====
+   When two stations have an equal composite score, break the tie using these
+   parameters IN ORDER, each DESCENDING (higher normalized value ranks first):
+     1) CCTNS Overall Forms Entry
+     2) CCTNS Weekly Forms IIF 1-7
+     3) eSakshya SID%
+     4) Dial112 Resp.Time
+   Station name (A→Z) is the final deterministic fallback so ordering is stable.
+   Applies to: weekly Composite ranking, Heatmap #rank, previous-week rank
+   (movement) and the Overall-Average ranking. */
+const TIEBREAK_PARAMS = ['CCTNS Overall Forms Entry','CCTNS Weekly Forms IIF 1-7','eSakshya SID%','Dial112 Resp.Time'];
+function _tbParams(o, lookup){
+  if(o && o.parameters) return o.parameters;                 // row already carries params
+  if(lookup) return lookup[normName(o.name)] || {};          // overall objs: look up by name
+  return {};
+}
+function tieBreak(a, b, lookup){
+  const pa=_tbParams(a,lookup), pb=_tbParams(b,lookup);
+  for(let i=0;i<TIEBREAK_PARAMS.length;i++){
+    const k=TIEBREAK_PARAMS[i];
+    const va=(typeof pa[k]==='number')?pa[k]:-Infinity;
+    const vb=(typeof pb[k]==='number')?pb[k]:-Infinity;
+    if(vb!==va) return vb-va;                                // descending
+  }
+  return a.name.localeCompare(b.name);                       // final deterministic fallback
+}
+/* Comparator factory: sort by `key` (score/prevScore/avg) DESCENDING, rounded to
+   2 dp so display-equal values (e.g. 68.80 vs 68.80) fall through to tieBreak. */
+function cmpScore(key, lookup){
+  return (a,b)=>{
+    const ra=Math.round(a[key]*100)/100, rb=Math.round(b[key]*100)/100;
+    if(rb!==ra) return rb-ra;
+    return tieBreak(a,b,lookup);
+  };
+}
 
 /* composite score for one parsed dataset → [{name,parameters,score,grade,providedDelta}] (no rank) */
 function computeComposite(data){
@@ -1235,11 +1271,11 @@ function recompute(){
 
   // current composite + rank
   const rows=computeComposite(cur.data);
-  rows.sort((a,b)=> (b.score-a.score) || a.name.localeCompare(b.name)); rows.forEach((r,i)=> r.rank=i+1);
+  rows.sort(cmpScore('score')); rows.forEach((r,i)=> r.rank=i+1);
 
   // previous week diff
   if(prev){
-    const p=computeComposite(prev.data); p.sort((a,b)=> (b.score-a.score) || a.name.localeCompare(b.name));
+    const p=computeComposite(prev.data); p.sort(cmpScore('score'));
     const pmap={}; p.forEach((r,i)=> pmap[normName(r.name)]={score:r.score,rank:i+1});
     rows.forEach(r=>{ const m=pmap[normName(r.name)];
       if(m){ r.prevScore=m.score; r.prevRank=m.rank; r.isNew=false; }
@@ -1249,7 +1285,7 @@ function recompute(){
   } else {
     rows.forEach(r=>{ r.delta=(r.providedDelta!=null)?r.providedDelta:0;
       r.prevScore=Math.round((r.score-r.delta)*10)/10; r.isNew=false; });
-    const po=[...rows].sort((a,b)=> (b.prevScore-a.prevScore) || a.name.localeCompare(b.name)); po.forEach((r,i)=> r.prevRank=i+1);
+    const po=[...rows].sort(cmpScore('prevScore')); po.forEach((r,i)=> r.prevRank=i+1);
     STATE.compareMode = rows.some(r=>r.providedDelta!=null)?'delta':'none';
   }
   rows.forEach(r=>{ r.rankChg=r.prevRank-r.rank; r.scoreChg=r.delta; });
@@ -1268,7 +1304,8 @@ function recompute(){
       (agg[k]||(agg[k]={name:s.name,scores:[]})).scores.push(s.score); }); });
   const overall=Object.values(agg).map(o=>{ const avg=o.scores.reduce((a,b)=>a+b,0)/o.scores.length;
     return {name:o.name, avg:Math.round(avg*10)/10, weeks:o.scores.length, grade:gradeFor(avg)}; });
-  overall.sort((a,b)=> (b.avg-a.avg) || a.name.localeCompare(b.name)); overall.forEach((o,i)=> o.orank=i+1);
+  const _tbLookup={}; rows.forEach(r=> _tbLookup[normName(r.name)]=r.parameters);
+  overall.sort(cmpScore('avg', _tbLookup)); overall.forEach((o,i)=> o.orank=i+1);
   STATE.overall=overall;
 
   // per-station history (score+rank across weeks) for multi-week trends
