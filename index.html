@@ -2784,5 +2784,28 @@ boot().then(()=>{ if(location.hash.toLowerCase()==='#admin' && !isAdmin()) admin
     </div>
   </div>
 </div>
+<!-- ===== Casual source-view deterrent (NOT real security; client code is always inspectable) ===== -->
+<script>
+(function(){
+  // Block right-click context menu
+  document.addEventListener('contextmenu', function(e){ e.preventDefault(); }, false);
+
+  // Block common shortcuts: F12, Ctrl+U (view source), Ctrl+S (save),
+  // Ctrl+Shift+I / J / C (devtools), Ctrl+P (print-to-source)
+  document.addEventListener('keydown', function(e){
+    var k = (e.key || '').toLowerCase();
+    if (
+      k === 'f12' ||
+      (e.ctrlKey && k === 'u') ||
+      (e.ctrlKey && k === 's') ||
+      (e.ctrlKey && k === 'p') ||
+      (e.ctrlKey && e.shiftKey && (k === 'i' || k === 'j' || k === 'c'))
+    ) {
+      e.preventDefault();
+      return false;
+    }
+  }, false);
+})();
+</script>
 </body>
 </html>
