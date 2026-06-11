@@ -1,0 +1,29 @@
+name: Weekly Backup
+
+on:
+  schedule:
+    - cron: '30 3 * * 3'      # every Wednesday, 9:00 AM IST
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create dated zip
+        run: |
+          DATE=$(date +'%Y-%m-%d')
+          echo "DATE=$DATE" >> $GITHUB_ENV
+          zip -r "backup-$DATE.zip" . -x ".git/*" ".github/*"
+
+      - name: Publish backup
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "backup-${{ env.DATE }}" "backup-${{ env.DATE }}.zip" \
+            --title "Backup ${{ env.DATE }}" \
+            --notes "Automated weekly backup"
