@@ -717,6 +717,22 @@ table.sd-rank td.nm{white-space:nowrap}
 /* keep them identical at the smaller breakpoints too */
 @media(max-width:760px){ .crest,.officer img{width:56px !important;height:56px !important} }
 @media(max-width:480px){ .crest,.officer img{width:48px !important;height:48px !important;min-width:48px} }
+
+/* ============================================================
+   HEADER STATS + SUBLINE (desktop ≥901px) — make the three
+   right-side boxes more compact so the sub-line (including the
+   "Previous Week …" range) fits on ONE line at 100% zoom.
+   (applied last — wins all earlier rules)
+   ============================================================ */
+@media(min-width:901px){
+  .hstats{gap:6px !important;}
+  .stat{padding:9px 13px !important;min-width:0 !important;border-radius:11px !important;}
+  .stat .v{font-size:22px !important;}
+  .stat .l{font-size:9.5px !important;letter-spacing:.06em !important;margin-top:3px !important;}
+  /* keep the whole sub-line on a single row */
+  .subline{white-space:nowrap !important;overflow-wrap:normal !important;font-size:13px !important;}
+  .subline .sep{margin:0 7px !important;}
+}
 </style>
 </head>
 <body>
