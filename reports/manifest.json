@@ -1,26 +1,8 @@
 [
   {
-    "name": "NATGRID_CHITTOOR.pdf",
-    "url": "reports/NATGRID_CHITTOOR.pdf",
-    "size": 190156,
-    "date": "2026-06-17T07:22:11+05:30"
-  },
-  {
-    "name": "ITSSO_CASES.pdf",
-    "url": "reports/ITSSO_CASES.pdf",
-    "size": 255122,
-    "date": "2026-06-17T07:19:51+05:30"
-  },
-  {
     "name": "NCL_90_DAYS_CASES.pdf",
     "url": "reports/NCL_90_DAYS_CASES.pdf",
     "size": 279942,
     "date": "2026-06-17T07:19:27+05:30"
-  },
-  {
-    "name": "NCL_60_DAYS_CASES.pdf",
-    "url": "reports/NCL_60_DAYS_CASES.pdf",
-    "size": 279952,
-    "date": "2026-06-17T07:19:03+05:30"
   }
 ]
