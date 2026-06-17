@@ -695,6 +695,28 @@ table{max-width:none}
 table.sd-rank td{vertical-align:middle}
 table.sd-rank td.nm{white-space:nowrap}
 @media(max-width:640px){ .sd-members{min-width:160px;max-width:none} }
+
+/* ============================================================
+   HEADER LOGO CLUSTER — equal size + vertical centering
+   (applied last so it wins all earlier rules / media queries)
+   ============================================================ */
+.hmain{align-items:center !important;}            /* center the 3 icons vertically in the band */
+.officer{justify-content:center !important;}      /* no label below now, keep img centered      */
+.crest,
+.officer img{
+  width:56px !important;
+  height:56px !important;
+  min-width:56px;
+  flex:none;
+  border-radius:50% !important;
+  object-fit:cover !important;
+  object-position:center !important;
+  border:2px solid var(--gold-soft) !important;   /* one consistent border on all three          */
+  box-shadow:0 6px 16px rgba(0,0,0,.45) !important;
+}
+/* keep them identical at the smaller breakpoints too */
+@media(max-width:760px){ .crest,.officer img{width:56px !important;height:56px !important} }
+@media(max-width:480px){ .crest,.officer img{width:48px !important;height:48px !important;min-width:48px} }
 </style>
 </head>
 <body>
