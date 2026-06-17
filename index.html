@@ -623,6 +623,78 @@ img,canvas,svg,video{max-width:100%}
   .stat .l{font-size:8px;font-weight:800}
   .tab{font-size:11.5px;padding:6px 9px}
 }
+
+/* ============================================================
+   RESPONSIVE OVERLAP FIXES (applied last — wins all cascades)
+   Goal: no UI element overlaps another at ANY screen resolution.
+   ============================================================ */
+*,*::before,*::after{box-sizing:border-box}
+html,body{overflow-x:hidden;max-width:100%}
+img,canvas,svg,video{max-width:100%;height:auto}
+canvas{height:auto}
+
+/* Header: title must WRAP cleanly and never overlap the sub-line or stats.
+   (Removes the forced single-line `white-space:nowrap` that caused the title
+   to collide with the line beneath it on intermediate widths.) */
+.hmain{align-items:flex-start!important;row-gap:14px}
+.htext{flex:1 1 320px!important;min-width:0!important}
+.htext h1{
+  white-space:normal!important;
+  overflow-wrap:anywhere;
+  word-break:break-word;
+  line-height:1.25!important;
+  margin:3px 0 8px!important;
+}
+@media(min-width:760px){ .htext h1{white-space:normal!important} }   /* override the old nowrap rule */
+.subline{white-space:normal;line-height:1.5;overflow-wrap:anywhere}
+.kicker{white-space:normal}
+.hstats{flex:0 0 auto;flex-wrap:wrap;row-gap:7px}
+
+/* Tabs never overlap content — keep them scrollable & above panels */
+nav.tabs{z-index:50}
+.tabrow{flex-wrap:nowrap}
+
+/* Every wide table is independently scrollable so columns never bleed out */
+.tbl-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;max-width:100%}
+table{max-width:none}
+
+/* Chart containers keep a definite height so canvases can't collapse/overlap */
+.chart-box{width:100%}
+
+/* Cards/grids: collapse to single column early enough to avoid squeeze */
+@media(max-width:820px){
+  .grid.g2{grid-template-columns:1fr}
+  .sw-row{grid-template-columns:1fr}
+  .kpi-row{grid-template-columns:repeat(2,1fr)}
+}
+
+/* Mid widths (tablet → small laptop): looser header gutters */
+@media(max-width:1180px){ .wrap{padding:0 48px} }
+@media(max-width:900px){
+  .wrap{padding:0 40px}
+  .hstats{width:100%;justify-content:flex-start}
+  .stat{flex:1 1 120px;min-width:0}
+}
+@media(max-width:640px){
+  .wrap{padding:0 20px}
+  .sec-h{gap:6px}
+  .sec-h h2{font-size:19px}
+  .toolbar{flex-direction:column;align-items:stretch}
+  .toolbar .field{width:100%}
+  .seg{flex-wrap:wrap}
+  .kpi-row{grid-template-columns:1fr}
+  .card .ch{flex-wrap:wrap}
+}
+
+/* ============================================================
+   SD RANKINGS — module-specific styles
+   ============================================================ */
+.sd-best{color:#0f7a4d;font-weight:700}
+.sd-worst{color:#a52828;font-weight:700}
+.sd-members{font-size:12px;color:var(--muted);line-height:1.4;min-width:220px;max-width:420px}
+table.sd-rank td{vertical-align:middle}
+table.sd-rank td.nm{white-space:nowrap}
+@media(max-width:640px){ .sd-members{min-width:160px;max-width:none} }
 </style>
 </head>
 <body>
@@ -681,6 +753,7 @@ img,canvas,svg,video{max-width:100%}
   <button class="tab" data-p="method">📋 Methodology</button>
   <button class="tab" data-p="legacy">🗄️ Legacy Data</button>
   <button class="tab" data-p="reports">📁 Other Reports</button>
+  <button class="tab" data-p="sd">🏛️ Sub-Division Performance</button>
 </div></div></nav>
 
 <main class="wrap">
@@ -692,6 +765,7 @@ img,canvas,svg,video{max-width:100%}
   <section class="panel" id="p-method"></section>
   <section class="panel" id="p-legacy"></section>
   <section class="panel" id="p-reports"></section>
+  <section class="panel" id="p-sd"></section>
 </main>
 
 <footer class="wrap" id="footer"></footer>
@@ -1388,7 +1462,11 @@ function recompute(){
   STATE.byName={}; rows.forEach(r=> STATE.byName[r.name]=r);
   STATE.source = `${weeks.length} week${weeks.length>1?'s':''} loaded · current ${cur.label}`;
 
+  computeSD();   // Sub-Division aggregates (rankings, category averages, multi-week trend)
+
   paintChrome(); renderAll(); setSource(true, STATE.source); updateCompareBadge();
+  // keep the SD Rankings tab in sync when the active week changes (Legacy browser, refresh, etc.)
+  if(document.getElementById('p-sd') && document.getElementById('p-sd').classList.contains('active')) renderSD();
 }
 
 function updateCompareBadge(){
@@ -2374,12 +2452,328 @@ function renderMethod(){
     </div>`;
 }
 
+/* ===================== 7) SUB-DIVISION (SD) RANKINGS =====================
+   Master Police-Station → Sub-Division mapping (from SD.xlsx). This is the single
+   source of truth for every SD-level calculation, ranking, filter and report.
+   PS names in the loaded weekly file are matched to this list with tolerant,
+   punctuation-insensitive matching, so small spelling/format differences still map. */
+const SD_RAW = [
+  ["Chittoor I Town UPS","Chittoor"],["Chittoor II Town UPS","Chittoor"],["Chittoor Taluk PS","Chittoor"],
+  ["Narsingarayanipet(N.R.Pet)","Chittoor"],["Penumur","Chittoor"],["Gudipala","Chittoor"],
+  ["Kanipakam","Chittoor"],["Thavanampalle","Chittoor"],["Yadamari","Chittoor"],
+  ["G.D.Nellore UPS","Chittoor"],["Irala","Chittoor"],["Kallur","Chittoor"],
+  ["Rompicherla","Chittoor"],["Puthalapattu UPS","Chittoor"],
+  ["Chittoor Traffic UPS","SPL Wings"],["Mahila UPS, Chittoor","SPL Wings"],["CCS Chittoor UPS","SPL Wings"],
+  ["Gudipalli","Kuppam"],["Rallabudugur","Kuppam"],["Ramakuppam","Kuppam"],["Kuppam UPS","Kuppam"],
+  ["K. Nagar","Nagari"],["Palasamudram","Nagari"],["S.R.Puram","Nagari"],["Vedurukuppam","Nagari"],
+  ["Nindra","Nagari"],["Vijayapuram","Nagari"],["Nagari UPS","Nagari"],
+  ["Bangarupalem UPS","Palamaner"],["Gangavaram UPS","Palamaner"],["Baireddypalle","Palamaner"],
+  ["Panjani","Palamaner"],["Palamaner UPS","Palamaner"],["Chowdepalli","Palamaner"],
+  ["Sodam","Palamaner"],["Somala","Palamaner"],["Punganur UPS","Palamaner"],["V.Kota UPS","Palamaner"]
+];
+const SD_LIST = [...new Set(SD_RAW.map(r=>r[1]))];               // SD names, in mapping order
+function sdNorm(s){ return String(s||'').toLowerCase().replace(/[^a-z0-9]/g,''); }
+const SD_LOOKUP = SD_RAW.map(([ps,sd])=>{
+  const full = sdNorm(ps);
+  const pre  = sdNorm(ps.split('(')[0]);                         // text before "(...)"
+  const par  = sdNorm((ps.match(/\(([^)]*)\)/)||[])[1]||'');     // text inside "(...)"
+  const core = full.replace(/(upolicestation|policestation|ups|ps)$/,'');
+  const keys = [...new Set([full,pre,par,core].filter(k=>k && k.length>=4))];
+  return { ps, sd, full, keys };
+});
+/* Resolve a loaded PS name to its Sub-Division. Returns null if no confident match. */
+function sdForName(name){
+  const n = sdNorm(name); if(!n) return null;
+  let e = SD_LOOKUP.find(x=> x.full===n); if(e) return e;                    // exact
+  e = SD_LOOKUP.find(x=> x.keys.includes(n)); if(e) return e;                // exact key (alias/pre/paren)
+  // tolerant substring match — pick the entry whose matching key is longest (least ambiguous)
+  let best=null, bestLen=0;
+  SD_LOOKUP.forEach(x=> x.keys.forEach(k=>{
+    if(k.length>=5 && (n.includes(k)||k.includes(n)) && k.length>bestLen){ best=x; bestLen=k.length; }
+  }));
+  return best;
+}
+
+/* Build STATE.sd: per-SD aggregate of the CURRENT week composite scores + category
+   averages + multi-week overall average. Ranked best→worst. */
+function computeSD(){
+  const rows = STATE.rows||[], P = STATE.parameters||[];
+  const ovByName={}; (STATE.overall||[]).forEach(o=> ovByName[normName(o.name)]=o);
+  const groups={}, unassigned=[];
+  rows.forEach(r=>{ const hit=sdForName(r.name);
+    if(!hit){ unassigned.push(r); return; }
+    (groups[hit.sd]||(groups[hit.sd]={sd:hit.sd, members:[]})).members.push(r); });
+  const recs = Object.values(groups).map(g=>{
+    const sorted=[...g.members].sort(cmpScore('score'));
+    const avg = g.members.reduce((a,m)=>a+m.score,0)/g.members.length;
+    const catAvg={};
+    P.forEach(p=>{ const vals=g.members.map(m=>m.parameters[p]).filter(v=>typeof v==='number'&&!isNaN(v));
+      catAvg[p]= vals.length? Math.round((vals.reduce((a,b)=>a+b,0)/vals.length)*100)/100 : null; });
+    const ovVals=g.members.map(m=>{const o=ovByName[normName(m.name)];return o?o.avg:null;}).filter(v=>v!=null);
+    const ovAvg = ovVals.length? ovVals.reduce((a,b)=>a+b,0)/ovVals.length : null;
+    return { sd:g.sd, members:g.members, sorted, count:g.members.length,
+      score:Math.round(avg*10)/10, grade:gradeFor(avg), catAvg,
+      ovAvg: ovAvg!=null?Math.round(ovAvg*10)/10:null,
+      best: sorted[0], worst: sorted[sorted.length-1] };
+  });
+  recs.sort((a,b)=> b.score-a.score || a.sd.localeCompare(b.sd));
+  recs.forEach((r,i)=> r.rank=i+1);
+  STATE.sd = { recs, unassigned, byName:Object.fromEntries(recs.map(r=>[r.sd,r])) };
+}
+
+/* per-SD average composite score for every loaded week (multi-week SD trend) */
+function sdHistory(){
+  const labels = STATE.history.labels||[];
+  const byName = STATE.history.byName||{};
+  const series = {};   // sd -> [score per week index]
+  SD_LIST.forEach(sd=> series[sd]=labels.map(()=>({sum:0,n:0})));
+  Object.values(byName).forEach(rec=>{
+    const hit=sdForName(rec.name); if(!hit) return;
+    rec.points.forEach(pt=>{ const slot=series[hit.sd][pt.wi]; if(slot){ slot.sum+=pt.score; slot.n++; } });
+  });
+  const out={}; SD_LIST.forEach(sd=> out[sd]=series[sd].map(s=> s.n? Math.round(s.sum/s.n*10)/10 : null));
+  return { labels, byName:out };
+}
+
+function setSDFilter(v){ STATE.sdFilter=v; renderSD(); }
+
+function renderSD(){
+  const host=document.getElementById('p-sd'); if(!host) return;
+  if(!STATE.sd) computeSD();
+  const sd=STATE.sd;
+  if(!sd || !sd.recs.length){
+    host.innerHTML='<div class="card"><div class="cb"><div class="rp-empty">No data loaded yet — Sub-Division rankings appear once a weekly report is available.</div></div></div>';
+    return;
+  }
+  const filter = STATE.sdFilter || 'all';
+  const n = STATE.history.weeksCount||1;
+  const opts = `<option value="all"${filter==='all'?' selected':''}>All Sub-Divisions</option>`+
+    sd.recs.map(r=>`<option value="${r.sd}"${filter===r.sd?' selected':''}>${r.sd} (#${r.rank})</option>`).join('');
+  const toolbar = `<div class="toolbar">
+      <div class="field"><label>Sub-Division Filter</label>
+        <select id="sdSel">${opts}</select></div>
+    </div>`;
+
+  if(filter==='all') host.innerHTML = sdOverallHTML(sd, n, toolbar);
+  else               host.innerHTML = sdDetailHTML(sd, filter, n, toolbar);
+
+  const sel=host.querySelector('#sdSel'); if(sel) sel.onchange=()=>setSDFilter(sel.value);
+  if(filter==='all') sdOverallCharts(sd, n);
+  else               sdDetailCharts(sd, filter, n);
+}
+
+/* ---------- ALL SUB-DIVISIONS (overall rankings view) ---------- */
+function sdOverallHTML(sd, n, toolbar){
+  const recs=sd.recs, P=STATE.parameters;
+  const top=recs.slice(0,3);
+  const podium = top.map(r=>`
+    <div class="prow" onclick="setSDFilter('${r.sd.replace(/'/g,"\\'")}')">
+      <span class="medal">${medalFor(r.rank)}</span>
+      <span class="pn">${r.sd}</span>
+      <span class="chip flat">${r.count} PS</span>
+      <span class="gr ${r.grade}">${r.grade}</span>
+      <span class="ps num">${r.score.toFixed(1)}</span>
+    </div>`).join('');
+
+  const tableRows = recs.map(r=>{
+    const members = r.sorted.map(m=>m.name).join(', ');
+    return `<tr>
+      <td class="rk" style="text-align:center;vertical-align:middle">${medalFor(r.rank)}</td>
+      <td class="nm" style="vertical-align:middle"><b>${r.sd}</b></td>
+      <td class="sc num" style="color:${gradeColor(r.grade)};text-align:center;vertical-align:middle">${r.score.toFixed(1)}</td>
+      <td class="center" style="vertical-align:middle"><span class="gr ${r.grade}">${r.grade}</span></td>
+      <td class="center num" style="vertical-align:middle">${r.count}</td>
+      <td class="center num" style="vertical-align:middle">${r.ovAvg!=null?r.ovAvg.toFixed(1):'—'}</td>
+      <td style="vertical-align:middle"><span class="sd-best">${r.best.name}</span></td>
+      <td style="vertical-align:middle"><span class="sd-worst">${r.worst.name}</span></td>
+      <td class="sd-members" style="vertical-align:middle;white-space:normal">${members}</td>
+    </tr>`;}).join('');
+
+  // SD category heatmap (Sub-Division × Methodology Category, averaged)
+  const hmHead = `<th class="hm-ps" style="position:sticky;left:0;z-index:4;background:#1a2a63;color:#dfe6fb;text-align:center;vertical-align:middle">Sub-Division</th>
+    <th class="center" style="vertical-align:middle">Score</th>`+
+    P.map((p,i)=>`<th title="${p}"><span class="rot">${catLabel(p,i)}</span></th>`).join('');
+  const hmBody = recs.map(r=>`
+    <tr>
+      <td class="nm" style="position:sticky;left:0;background:var(--panel);z-index:2;vertical-align:middle">#${r.rank} ${r.sd}</td>
+      <td class="center" style="vertical-align:middle"><span class="gr ${r.grade}">${r.score.toFixed(1)}</span></td>
+      ${P.map(p=>{const v=r.catAvg[p];
+        return (v==null||isNaN(v))
+          ? `<td class="prm-cell na" style="background:#eef1f6;color:#9aa7bc;text-align:center;vertical-align:middle">—</td>`
+          : `<td class="prm-cell" style="background:${heatColorSoft(v)};color:#243049;padding:7px 3px;font-weight:700;font-size:11px;text-align:center;vertical-align:middle">${fmtCell(v)}</td>`;}).join('')}
+    </tr>`).join('');
+
+  const unassigned = sd.unassigned.length ? `
+    <div class="note" style="margin-top:14px">${sd.unassigned.length} Police Station(s) could not be matched to a Sub-Division and are excluded from SD aggregates:
+      <b>${sd.unassigned.map(r=>r.name).join(', ')}</b>. Update <b>SD.xlsx</b> names to match the weekly report exactly to include them.</div>` : '';
+
+  return `
+    <div class="sec-h"><h2>🏛️ Sub-Division Performance</h2>
+      <span class="desc">Police Stations aggregated by Sub-Division · average composite score · best→worst · week ${STATE.config.weekEnding}</span></div>
+    ${toolbar}
+    <div class="card" style="margin-bottom:16px"><div class="ch"><h3>🏆 Top Sub-Divisions</h3></div>
+      <div class="cb"><div class="podium" style="grid-template-columns:1fr">${podium}</div></div></div>
+    <div class="card" style="margin-bottom:16px"><div class="ch" style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+        <h3>Sub-Division Ranking Table <span style="color:var(--faint);font-weight:400;font-size:12px">(click a row → filter that Sub-Division)</span></h3>
+        <button class="btn" onclick="exportSDExcel()" title="Export Sub-Division rankings to Excel">⬇ Export to Excel</button></div>
+      <div class="cb tbl-scroll"><table class="fr sd-rank"><thead><tr>
+        <th class="center">Rank</th><th>Sub-Division</th><th class="center">Avg Score</th><th class="center">Grade</th>
+        <th class="center">PS Count</th><th class="center">Overall Avg</th><th>Top PS</th><th>Weakest PS</th><th>Constituent Police Stations</th>
+      </tr></thead><tbody>${tableRows}</tbody></table></div></div>
+    <div class="card"><div class="ch"><h3>Sub-Division × Methodology Category Heatmap</h3>
+        <span style="color:var(--faint);font-weight:400;font-size:12px">Average normalized score per category across each Sub-Division's stations</span></div>
+      <div class="cb tbl-scroll" style="max-height:70vh"><table class="hm"><thead><tr>${hmHead}</tr></thead><tbody>${hmBody}</tbody></table></div></div>
+    ${unassigned}`;
+}
+function sdOverallCharts(sd, n){
+  /* Overall SD bar chart and multi-week trend chart removed per request.
+     The ranking table and category heatmap remain. */
+}
+
+/* ---------- SINGLE SUB-DIVISION (filtered view) ---------- */
+function sdDetailHTML(sd, sdName, n, toolbar){
+  const rec=sd.byName[sdName], P=STATE.parameters;
+  if(!rec) return toolbar+'<div class="card"><div class="cb"><div class="rp-empty">No stations found for this Sub-Division.</div></div></div>';
+  const ms=rec.sorted;
+
+  const kpis = `<div class="kpi-row" style="margin-bottom:16px">
+    <div class="kpi"><div class="l">SD Rank (District)</div><div class="v">#${rec.rank} / ${sd.recs.length}</div></div>
+    <div class="kpi"><div class="l">Avg Composite</div><div class="v" style="color:${gradeColor(rec.grade)}">${rec.score.toFixed(1)} <span class="gr ${rec.grade}" style="font-size:13px">${rec.grade}</span></div></div>
+    <div class="kpi"><div class="l">Police Stations</div><div class="v">${rec.count}</div></div>
+    <div class="kpi"><div class="l">Top / Weakest PS</div><div class="v" style="font-size:14px">${rec.best.name}<br><span style="color:var(--muted);font-weight:600">${rec.worst.name}</span></div></div>
+  </div>`;
+
+  // PS rankings within SD (mirrors the district Rankings table, scoped to this SD)
+  const head = ['Rank','Chg','Police Station','Score','Δ',...P];
+  const headHtml = head.map((h,i)=>{
+    if(i<5) return `<th style="text-align:${i===2?'left':'center'};vertical-align:middle">${h}</th>`;
+    return `<th title="${h}"><span class="rot">${catLabel(h,i-5)}</span></th>`;
+  }).join('');
+  const body = ms.map((r,idx)=>`
+    <tr class="clickable" onclick="openDetail('${r.name.replace(/'/g,"\\'")}')">
+      <td class="rk" style="text-align:center;vertical-align:middle">${medalFor(idx+1)}</td>
+      <td style="text-align:center;vertical-align:middle">${chgChip(r.rankChg)}</td>
+      <td class="nm" style="text-align:left;vertical-align:middle;white-space:nowrap">${r.name} <span class="chip flat" style="font-size:10px">district #${r.rank}</span></td>
+      <td class="sc num" style="color:${gradeColor(r.grade)};text-align:center;vertical-align:middle">${Math.round(r.score)}<sub class="grsub">${r.grade}</sub></td>
+      <td style="text-align:center;vertical-align:middle">${scoreArrow(r.scoreChg)}</td>
+      ${P.map(p=>{const v=r.parameters[p];
+        return (v==null||isNaN(v))?`<td class="prm-cell na">—</td>`
+          :`<td class="prm-cell" style="background:${heatColorSoft(v)};color:#243049;font-size:11px;vertical-align:middle">${fmtCell(v)}</td>`;}).join('')}
+    </tr>`).join('');
+
+  return `
+    <div class="sec-h"><h2>🏛️ ${sdName} Sub-Division</h2>
+      <span class="desc">${rec.count} Police Stations · all district analytics scoped to this Sub-Division · week ${STATE.config.weekEnding}</span></div>
+    ${toolbar}
+    ${kpis}
+    <div class="card" style="margin-bottom:16px"><div class="ch"><h3>Composite Score — Stations in ${sdName}</h3></div>
+      <div class="cb"><div class="chart-box" style="height:360px"><canvas id="c-sddet-scores"></canvas></div></div></div>
+    <div class="card" style="margin-bottom:16px"><div class="ch"><h3>Category Comparison — ${sdName} vs District</h3>
+        <span style="color:var(--faint);font-weight:400;font-size:12px">Sub-Division category averages benchmarked against the all-district average</span></div>
+      <div class="cb"><div class="chart-box" style="height:380px"><canvas id="c-sddet-cmp"></canvas></div></div></div>
+    <div class="card" style="margin-bottom:16px"><div class="ch" style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+        <h3>${sdName} — Police Station Rankings</h3>
+        <button class="btn" onclick="exportSDExcel('${sdName.replace(/'/g,"\\'")}')" title="Export this Sub-Division to Excel">⬇ Export to Excel</button></div>
+      <div class="cb tbl-scroll"><table class="fr frfull"><thead><tr>${headHtml}</tr></thead><tbody>${body}</tbody></table></div></div>
+    <div class="card"><div class="ch"><h3>${sdName} — Methodology Category Heatmap</h3></div>
+      <div class="cb tbl-scroll" style="max-height:70vh"><table class="hm"><thead><tr>
+        <th class="hm-ps" style="position:sticky;left:0;z-index:4;background:#1a2a63;color:#dfe6fb;text-align:center;vertical-align:middle">Police Station</th>
+        <th class="center">Score</th>
+        ${P.map((p,i)=>`<th title="${p}"><span class="rot">${catLabel(p,i)}</span></th>`).join('')}
+      </tr></thead><tbody>${ms.map(r=>`
+        <tr class="clickable" onclick="openDetail('${r.name.replace(/'/g,"\\'")}')">
+          <td class="nm" style="position:sticky;left:0;background:var(--panel);z-index:2;vertical-align:middle">${r.name}</td>
+          <td class="center" style="vertical-align:middle"><span class="gr ${r.grade}">${r.score.toFixed(1)}</span></td>
+          ${P.map(p=>{const v=r.parameters[p];
+            return (v==null||isNaN(v))?`<td class="prm-cell na" style="background:#eef1f6;color:#9aa7bc;text-align:center;vertical-align:middle">—</td>`
+              :`<td class="prm-cell" style="background:${heatColorSoft(v)};color:#243049;padding:7px 3px;font-weight:700;font-size:11px;text-align:center;vertical-align:middle">${fmtCell(v)}</td>`;}).join('')}
+        </tr>`).join('')}</tbody></table></div></div>`;
+}
+/* draws the numeric value above every bar (works for single- and multi-dataset vertical bar charts) */
+const sdBarValues = {
+  id:'sdBarValues',
+  afterDatasetsDraw(chart){
+    const ctx=chart.ctx; ctx.save();
+    ctx.font="700 9px 'Segoe UI',system-ui,sans-serif";
+    ctx.textAlign='center'; ctx.textBaseline='bottom';
+    chart.data.datasets.forEach((ds,di)=>{
+      const meta=chart.getDatasetMeta(di); if(!meta||meta.hidden) return;
+      ctx.fillStyle = di===0 ? '#1e2d6b' : '#6b7890';
+      meta.data.forEach((bar,i)=>{ const v=ds.data[i];
+        if(v==null||isNaN(v)) return;
+        ctx.fillText(Math.round(v*10)/10, bar.x, bar.y-2);
+      });
+    });
+    ctx.restore();
+  }
+};
+function sdDetailCharts(sd, sdName, n){
+  const rec=sd.byName[sdName]; if(!rec) return;
+  const ms=rec.sorted, P=STATE.parameters;
+  mkChart('sddet-scores',$('c-sddet-scores'),{
+    type:'bar',
+    data:{labels:ms.map(r=>r.name),datasets:[{data:ms.map(r=>r.score),
+      backgroundColor:ms.map(r=>gradeColorHex(r.grade)),borderRadius:4,maxBarThickness:40}]},
+    options:{responsive:true,maintainAspectRatio:false,layout:{padding:{top:16}},
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`Score ${fmtCell(c.raw)} · ${ms[c.dataIndex].grade}`}}},
+      scales:{y:{min:0,max:100,grid:{color:'rgba(148,163,184,.22)'},ticks:{stepSize:25}},
+              x:{ticks:{font:{size:10},autoSkip:false,maxRotation:90,minRotation:55},grid:{display:false}}},
+      onClick:(e,el)=>{ if(el.length) openDetail(ms[el[0].index].name); }},
+    plugins:[sdBarValues]
+  });
+  // District category averages for benchmarking
+  const distAvg={}; P.forEach(p=>{ const vals=STATE.rows.map(r=>r.parameters[p]).filter(v=>typeof v==='number'&&!isNaN(v));
+    distAvg[p]= vals.length? vals.reduce((a,b)=>a+b,0)/vals.length : null; });
+  mkChart('sddet-cmp',$('c-sddet-cmp'),{
+    type:'bar',
+    data:{labels:P.map((p,i)=>catLabel(p,i)),
+      datasets:[
+        {label:sdName, data:P.map(p=>rec.catAvg[p]), backgroundColor:'#2f44d0', borderRadius:3, maxBarThickness:18},
+        {label:'District avg', data:P.map(p=>distAvg[p]!=null?Math.round(distAvg[p]*10)/10:null), backgroundColor:'#cbd5e6', borderRadius:3, maxBarThickness:18}
+      ]},
+    options:{responsive:true,maintainAspectRatio:false,layout:{padding:{top:16}},
+      plugins:{legend:{position:'bottom'}},
+      scales:{y:{min:0,max:100,grid:{color:'rgba(148,163,184,.18)'},ticks:{stepSize:25}},
+              x:{ticks:{font:{size:9},autoSkip:false,maxRotation:90,minRotation:55},grid:{display:false}}}},
+    plugins:[sdBarValues]
+  });
+}
+
+/* Export — Sub-Division rankings (all SDs) or a single SD's police-station list */
+function exportSDExcel(sdName){
+  if(!STATE.sd){ computeSD(); }
+  const wk=STATE.config.weekEnding;
+  if(sdName && STATE.sd.byName[sdName]){
+    const rec=STATE.sd.byName[sdName];
+    const rows=rec.sorted.map((r,i)=>['#'+(i+1), r.name, 'district #'+r.rank, Number(r.score.toFixed(1)), r.grade,
+      (r.scoreChg>0?'+':'')+(r.scoreChg!=null?r.scoreChg.toFixed(1):'0.0')]);
+    exportGenericExcel({ sheetName:sdName,
+      title:'Chittoor Police Smart Policing — '+sdName+' Sub-Division',
+      subtitle:'Police Station rankings within '+sdName+'  ·  week ending '+wk,
+      headers:['SD Rank','Police Station','District Rank','Score','Grade','Δ vs prev'],
+      aligns:['center','left','center','center','center','center'],
+      widths:[10,32,14,10,9,12], rows, freezeCols:2, orientation:'portrait',
+      fileName:'Chittoor_SD_'+sdName.replace(/[^\w]+/g,'_')+'_'+((wk||'').replace(/[^\w.\-]/g,'_')||'week') });
+    return;
+  }
+  const rows=STATE.sd.recs.map(r=>['#'+r.rank, r.sd, Number(r.score.toFixed(1)), r.grade, r.count,
+    r.ovAvg!=null?Number(r.ovAvg.toFixed(1)):'—', r.best.name, r.worst.name, r.sorted.map(m=>m.name).join(', ')]);
+  exportGenericExcel({ sheetName:'SD Rankings',
+    title:'Chittoor Police Smart Policing — Sub-Division Rankings',
+    subtitle:'Average composite score by Sub-Division  ·  week ending '+wk,
+    headers:['Rank','Sub-Division','Avg Score','Grade','PS Count','Overall Avg','Top PS','Weakest PS','Constituent Police Stations'],
+    aligns:['center','left','center','center','center','center','left','left','left'],
+    widths:[8,16,11,8,9,11,22,22,60], rows, freezeCols:2, orientation:'landscape',
+    fileName:'Chittoor_SD_Rankings_'+((wk||'').replace(/[^\w.\-]/g,'_')||'week') });
+}
+
 /* ===================== TABS / FILE / BOOT ===================== */
 function switchTab(p){
   document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.p===p));
   document.querySelectorAll('.panel').forEach(s=>s.classList.toggle('active',s.id==='p-'+p));
   if(p==='legacy') renderLegacy();
   if(p==='reports') renderReports();
+  if(p==='sd') renderSD();
   window.scrollTo({top:0,behavior:'smooth'});
 }
 document.getElementById('tabrow').addEventListener('click',e=>{
