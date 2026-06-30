@@ -860,7 +860,7 @@ const WEIGHTS_TABLE = [
   ['MedLEaPR PME','MedLEaPR PME',5,'Weekly',1],
   ['MedLEaPR MLC','MedLEaPR MLC',5,'Weekly',1],
   ['NATGRID (Gandiva+Sudarshan)','NATGRID',5,'Weekly',1],
-  ['DGP Dashboard','DGP Dashboard',5,'Cumulative',1],
+  ['DGP Dashboard','DGP Dashboard',5,'Weekly',1],
   ['CCTNS Overall Forms Entry','CCTNS Overall',5,'Cumulative',1],
   ['CCTNS Weekly Forms IIF 1-7','CCTNS IIF 1-7',2.5,'Weekly',1],
   ['CCTNS Weekly Forms IIF 8-15','CCTNS IIF 8-15',2.5,'Weekly',1],
@@ -2454,7 +2454,7 @@ function renderMethod(){
         <li><b>MedLEaPR PME</b> — Counts PME cases and checks whether they were updated. Full <b>5 marks</b> if all PME completed, or <b>5 marks</b> if no cases reported that week.</li>
         <li><b>MedLEaPR MLC</b> — Counts MLC cases and checks whether they were updated. Full <b>5 marks</b> if all MLC completed, or <b>5 marks</b> if no cases reported that week.</li>
         <li><b>NATGRID</b> — <span class="na">Not scored — does not fall under PS category.</span></li>
-        <li><b>DGP Dashboard</b> — <b>5 marks</b> if the PS SHO submits remarks.</li>
+        <li><b>DGP Dashboard</b> — <b>5 marks</b> if the PS SHO submits remarks (Weekly).</li>
         <li><b>CCTNS Overall</b> — Scored on if forms per FIR &gt;= Dist Average. <b>5 marks</b> weightage.</li>
         <li><b>CCTNS IIF 1–7</b> — Scored on forms entered for crimes reported that week (2.5% weightage). <b>1.25 marks</b> if no cases reported that week.</li>
         <li><b>CCTNS IIF 8–15</b> — <span class="na">Not scored — these reports are auto-generated.</span></li>
@@ -2467,10 +2467,10 @@ function renderMethod(){
         <li><b>FIRs &amp; CS Consumption</b> — <b>2.5 marks</b> for FIR consumption at court + <b>2.5 marks</b> for charge-sheet consumption at court.</li>
         <li><b>eOffice</b> — Scored on disposal and turnaround time. <b>5 marks</b>.</li>
         <li><b>APOLIS</b> — <b>2.5 marks</b> for app downloads in the PS + <b>2.5 marks</b> for APRs in the PS.</li>
-        <li><b>Drone Flying</b> — Scored on flying hours. <b>5 marks</b>. Neutral <b>1 mark</b> if there are no drones in the PS.</li>
+        <li><b>Drone Flying</b> — Scored on flying hours and enforcement (<b>4 + 1</b>). <b>5 marks</b>. Neutral <b>1 mark</b> if there are no drones in the PS.</li>
         <li><b>Dial112 Tabs</b> — Scored on continuous connectivity. <b>5 marks</b>.</li>
         <li><b>Dial112 Response</b> — Scored on response time. <b>5 marks</b>.</li>
-        <li><b>CCTV360 Usage</b> — Login: <b>5 marks</b> (0 marks if login count &lt; 1). Scored on login count, scaled so <b>14 logins = full marks</b> and capped at 100%</li>
+        <li><b>CCTV360 Usage</b> — Web App &amp; Mobile App Login: <b>2.5 + 2.5 = 5 marks</b>. Marks are awarded only if the user logs in to both the Web App and the Mobile App at least once every day.</li>
         <li><b>News360AI</b> — <span class="na">Not scored — these reports are auto-generated.</span></li>
       </ol>
       <h3>Key principles</h3>
