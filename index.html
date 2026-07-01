@@ -2465,7 +2465,7 @@ function renderMethod(){
         <li><b>CEIR Score</b> — Performance-based. <b>5 marks</b>.</li>
         <li><b>eProsecution</b> — <span class="na">Not scored — these reports are auto-generated.</span></li>
         <li><b>FIRs &amp; CS Consumption</b> — <b>2.5 marks</b> for FIR consumption at court + <b>2.5 marks</b> for charge-sheet consumption at court.</li>
-        <li><b>eOffice</b> — Scored on disposal and turnaround time. <b>5 marks</b>.</li>
+        <li><b>eOffice</b> — Scored based on disposal (District Average) and turnaround time. <b>5 marks</b>.</li>
         <li><b>APOLIS</b> — <b>2.5 marks</b> for app downloads in the PS + <b>2.5 marks</b> for APRs in the PS.</li>
         <li><b>Drone Flying</b> — Scored on flying hours and enforcement (<b>4 + 1</b>). <b>5 marks</b>. Neutral <b>1 mark</b> if there are no drones in the PS.</li>
         <li><b>Dial112 Tabs</b> — Scored on continuous connectivity. <b>5 marks</b>.</li>
@@ -2658,8 +2658,10 @@ function sdOverallHTML(sd, n, toolbar){
         <th class="center">Rank</th><th>Sub-Division</th><th class="center">Avg Score</th><th class="center">Grade</th>
         <th class="center">PS Count</th><th class="center">Overall Avg</th><th>Top PS</th><th>Weakest PS</th><th>Constituent Police Stations</th>
       </tr></thead><tbody>${tableRows}</tbody></table></div></div>
-    <div class="card"><div class="ch"><h3>Sub-Division × Methodology Category Heatmap</h3>
+    <div class="card"><div class="ch" style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;flex-wrap:wrap">
+        <div><h3>Sub-Division × Methodology Category Heatmap</h3>
         <span style="color:var(--faint);font-weight:400;font-size:12px">Average normalized score per category across each Sub-Division's stations</span></div>
+        <button class="btn" onclick="exportSDHeatmapExcel()" title="Export Sub-Division × Methodology Category Heatmap to Excel — landscape, fits one or two pages">⬇ Export to Excel</button></div>
       <div class="cb tbl-scroll" style="max-height:70vh"><table class="hm"><thead><tr>${hmHead}</tr></thead><tbody>${hmBody}</tbody></table></div></div>
     ${unassigned}`;
 }
@@ -2803,6 +2805,68 @@ function exportSDExcel(sdName){
     aligns:['center','left','center','center','center','center','left','left','left'],
     widths:[8,16,11,8,9,11,22,22,60], rows, freezeCols:2, orientation:'landscape',
     fileName:'Chittoor_SD_Rankings_'+((wk||'').replace(/[^\w.\-]/g,'_')||'week') });
+}
+
+/* Export — Sub-Division × Methodology Category Heatmap (all Sub-Divisions, averaged) */
+async function exportSDHeatmapExcel(){
+  if(typeof ExcelJS==='undefined'){ alert('Excel engine is still loading — please try again in a moment.'); return; }
+  if(!STATE.sd){ computeSD(); }
+  const recs=STATE.sd.recs, P=STATE.parameters, wk=STATE.config.weekEnding||'';
+  const wb=new ExcelJS.Workbook(); wb.creator='Chittoor Police Smart Policing';
+  const ws=wb.addWorksheet('SD Methodology Heatmap', {
+    views:[{state:'frozen', xSplit:1, ySplit:4}],
+    pageSetup:{ orientation:'landscape', fitToPage:true, fitToWidth:1, fitToHeight:2,
+                paperSize:9, horizontalCentered:true,
+                margins:{left:0.3,right:0.3,top:0.45,bottom:0.4,header:0.2,footer:0.2} }
+  });
+  const heads=['Sub-Division','Score', ...P.map((p,i)=>catLabel(p,i))];
+  const ncol=heads.length, firstParamCol=3;
+  const thin=()=>{ const c={style:'thin',color:{argb:'FFD3DBE8'}}; return {top:c,left:c,bottom:c,right:c}; };
+  const argbFromRgb=(s)=>{ const m=String(s).match(/(\d+)\D+(\d+)\D+(\d+)/); if(!m) return 'FFFFFFFF';
+    const h=n=>('0'+parseInt(n,10).toString(16)).slice(-2).toUpperCase(); return 'FF'+h(m[1])+h(m[2])+h(m[3]); };
+
+  ws.mergeCells(1,1,1,ncol);
+  const t=ws.getCell(1,1);
+  t.value='Chittoor Police Smart Policing — Sub-Division × Methodology Category Heatmap (Normalized 0–100)';
+  t.font={name:'Calibri', size:14, bold:true, color:{argb:'FF16235C'}};
+  t.alignment={horizontal:'center', vertical:'middle'}; ws.getRow(1).height=22;
+
+  ws.mergeCells(2,1,2,ncol);
+  const sub=ws.getCell(2,1);
+  sub.value='Week ending '+wk+'  ·  '+recs.length+' sub-divisions  ·  average normalized methodology-category scores (0–100)';
+  sub.font={name:'Calibri', size:10, italic:true, color:{argb:'FF566378'}};
+  sub.alignment={horizontal:'center', vertical:'middle'}; ws.getRow(2).height=16; ws.getRow(3).height=4;
+
+  const hr=ws.getRow(4);
+  heads.forEach((h,i)=>{ const c=hr.getCell(i+1); c.value=h;
+    c.font={name:'Calibri', size:9, bold:true, color:{argb:'FFFFFFFF'}};
+    c.fill={type:'pattern', pattern:'solid', fgColor:{argb:'FF1E2D6B'}}; c.border=thin();
+    c.alignment=(i+1>=firstParamCol)? {textRotation:90, horizontal:'center', vertical:'bottom'}
+                                     : {horizontal:(i===0?'left':'center'), vertical:'middle', wrapText:true}; });
+  hr.height=118;
+
+  recs.forEach((r, ri)=>{
+    const vals=['#'+r.rank+'  '+r.sd, Number(r.score.toFixed(1))+'  '+r.grade,
+                ...P.map(p=>{ const v=r.catAvg[p]; return (v==null?'—':v); })];
+    const row=ws.addRow(vals); row.height=18.75;
+    row.eachCell({includeEmpty:true}, (c, ci)=>{ c.border=thin(); c.font={name:'Calibri', size:9};
+      c.alignment={horizontal:(ci===1?'left':'center'), vertical:'middle'}; });
+    P.forEach((p, pi)=>{ const v=r.catAvg[p]; const cell=row.getCell(firstParamCol+pi);
+      if(v==null||isNaN(v)){ cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFEDEFF3'}};
+        cell.font={name:'Calibri',size:9,color:{argb:'FF9AA7BC'}}; }
+      else { cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:argbFromRgb(heatColorSoft(v))}};
+        cell.font={name:'Calibri',size:9,color:{argb:'FF243049'}}; } });
+  });
+
+  for(let i=0;i<ncol;i++){ const col=ws.getColumn(i+1); col.width=(i===0?24:(i===1?11:4.4)); }
+  ws.pageSetup.printTitlesRow='1:4';
+
+  const buf=await wb.xlsx.writeBuffer();
+  const blob=new Blob([buf], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url; a.download='Chittoor_SD_Methodology_Heatmap_'+((wk||'').replace(/[^\w.\-]/g,'_')||'week')+'.xlsx';
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),1500);
 }
 
 /* ===================== TABS / FILE / BOOT ===================== */
