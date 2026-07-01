@@ -2715,7 +2715,9 @@ function sdDetailHTML(sd, sdName, n, toolbar){
         <h3>${sdName} — Police Station Rankings</h3>
         <button class="btn" onclick="exportSDExcel('${sdName.replace(/'/g,"\\'")}')" title="Export this Sub-Division to Excel">⬇ Export to Excel</button></div>
       <div class="cb tbl-scroll"><table class="fr frfull"><thead><tr>${headHtml}</tr></thead><tbody>${body}</tbody></table></div></div>
-    <div class="card"><div class="ch"><h3>${sdName} — Methodology Category Heatmap</h3></div>
+    <div class="card"><div class="ch" style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+        <h3>${sdName} — Methodology Category Heatmap</h3>
+        <button class="btn" onclick="exportSDDetailHeatmapExcel('${sdName.replace(/'/g,"\\'")}')" title="Export this Sub-Division's Methodology Category Heatmap to Excel — landscape, fits one or two pages">⬇ Export to Excel</button></div>
       <div class="cb tbl-scroll" style="max-height:70vh"><table class="hm"><thead><tr>
         <th class="hm-ps" style="position:sticky;left:0;z-index:4;background:#1a2a63;color:#dfe6fb;text-align:center;vertical-align:middle">Police Station</th>
         <th class="center">Score</th>
@@ -2779,21 +2781,83 @@ function sdDetailCharts(sd, sdName, n){
   });
 }
 
-/* Export — Sub-Division rankings (all SDs) or a single SD's police-station list */
-function exportSDExcel(sdName){
+/* Export — Sub-Division rankings (all SDs) or a single SD's full Police Station Rankings table
+   (mirrors every column visible on screen — incl. every methodology-category parameter — and is
+   formatted print-ready for A4 landscape, matching the district-wide PS Rankings export.) */
+async function exportSDExcel(sdName){
   if(!STATE.sd){ computeSD(); }
-  const wk=STATE.config.weekEnding;
+  const wk=STATE.config.weekEnding||'';
   if(sdName && STATE.sd.byName[sdName]){
+    if(typeof ExcelJS==='undefined'){ alert('Excel engine is still loading — please try again in a moment.'); return; }
     const rec=STATE.sd.byName[sdName];
-    const rows=rec.sorted.map((r,i)=>['#'+(i+1), r.name, 'district #'+r.rank, Number(r.score.toFixed(1)), r.grade,
-      (r.scoreChg>0?'+':'')+(r.scoreChg!=null?r.scoreChg.toFixed(1):'0.0')]);
-    exportGenericExcel({ sheetName:sdName,
-      title:'Chittoor Police Smart Policing — '+sdName+' Sub-Division',
-      subtitle:'Police Station rankings within '+sdName+'  ·  week ending '+wk,
-      headers:['SD Rank','Police Station','District Rank','Score','Grade','Δ vs prev'],
-      aligns:['center','left','center','center','center','center'],
-      widths:[10,32,14,10,9,12], rows, freezeCols:2, orientation:'portrait',
-      fileName:'Chittoor_SD_'+sdName.replace(/[^\w]+/g,'_')+'_'+((wk||'').replace(/[^\w.\-]/g,'_')||'week') });
+    const ms=rec.sorted, P=STATE.parameters;
+    const gradeArgb={A:'FF16A36A',B:'FF2E83C4',C:'FFB9820F',D:'FFC65A18',E:'FFCF3030'};
+
+    const wb=new ExcelJS.Workbook(); wb.creator='Chittoor Police Smart Policing';
+    const ws=wb.addWorksheet('SD PS Rankings', {
+      views:[{state:'frozen', xSplit:3, ySplit:4}],
+      pageSetup:{ orientation:'landscape', fitToPage:true, fitToWidth:1, fitToHeight:2,
+                  paperSize:9, horizontalCentered:true,
+                  margins:{left:0.3,right:0.3,top:0.45,bottom:0.4,header:0.2,footer:0.2} }
+    });
+
+    const heads=['Rank','Chg','Police Station','District Rank','Score','Δ vs Prev','Grade', ...P.map((p,i)=>catLabel(p,i))];
+    const ncol=heads.length, nameCol=3, firstParamCol=8;
+    const thin=()=>{ const c={style:'thin',color:{argb:'FFD3DBE8'}}; return {top:c,left:c,bottom:c,right:c}; };
+
+    ws.mergeCells(1,1,1,ncol);
+    const t=ws.getCell(1,1);
+    t.value='Chittoor Police Smart Policing — '+sdName+' Sub-Division — Police Station Rankings';
+    t.font={name:'Calibri', size:14, bold:true, color:{argb:'FF16235C'}};
+    t.alignment={horizontal:'center', vertical:'middle'}; ws.getRow(1).height=22;
+
+    ws.mergeCells(2,1,2,ncol);
+    const sub=ws.getCell(2,1);
+    sub.value=rec.count+' Police Stations in '+sdName+'  ·  week ending '+wk+'  ·  composite weighted score';
+    sub.font={name:'Calibri', size:10, italic:true, color:{argb:'FF566378'}};
+    sub.alignment={horizontal:'center', vertical:'middle'}; ws.getRow(2).height=16; ws.getRow(3).height=4;
+
+    const hr=ws.getRow(4);
+    heads.forEach((h,i)=>{ const c=hr.getCell(i+1); c.value=h;
+      c.font={name:'Calibri', size:9, bold:true, color:{argb:'FFFFFFFF'}};
+      c.fill={type:'pattern', pattern:'solid', fgColor:{argb:'FF1E2D6B'}}; c.border=thin();
+      c.alignment=(i+1>=firstParamCol)? {textRotation:90, horizontal:'center', vertical:'bottom'}
+                                       : {horizontal:'center', vertical:'middle', wrapText:true}; });
+    hr.height=118;
+
+    ms.forEach((r, ri)=>{
+      const move = r.rankChg>0 ? ('▲ '+r.rankChg) : r.rankChg<0 ? ('▼ '+Math.abs(r.rankChg)) : '—';
+      const dlt = (r.scoreChg==null||r.scoreChg===0) ? '—'
+                : (r.scoreChg>0 ? ('↑ '+r.scoreChg.toFixed(1)) : ('↓ '+Math.abs(r.scoreChg).toFixed(1)));
+      const vals=['#'+(ri+1), move, r.name, '#'+r.rank, Number(r.score.toFixed(1)), dlt, r.grade,
+        ...P.map(p=>{ const v=r.parameters[p]; return (v==null||isNaN(v))?'—':v; })];
+      const row=ws.addRow(vals); row.height=18.75;
+      row.eachCell({includeEmpty:true},(c,ci)=>{ c.border=thin(); c.font={name:'Calibri', size:9};
+        c.alignment={horizontal:(ci===nameCol?'left':'center'), vertical:'middle'};
+        if(ri%2===1) c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFF4F7FC'}}; });
+      row.getCell(5).font={name:'Calibri', size:9, bold:true};
+      row.getCell(7).font={name:'Calibri', size:9, bold:true, color:{argb:(gradeArgb[r.grade]||'FF566378')}};
+      if(r.rankChg>0) row.getCell(2).font={name:'Calibri', size:9, color:{argb:'FF16A36A'}};
+      else if(r.rankChg<0) row.getCell(2).font={name:'Calibri', size:9, color:{argb:'FFCF3030'}};
+    });
+
+    const baseW=[6,9,26,11,8,10,8];
+    for(let i=0;i<ncol;i++){ const col=ws.getColumn(i+1); col.width=(i<baseW.length?baseW[i]:4.4); }
+    ws.pageSetup.printTitlesRow='1:4';
+
+    const noteRow=ws.addRow([]);
+    ws.mergeCells(noteRow.number,1,noteRow.number,ncol);
+    const nc=ws.getCell(noteRow.number,1);
+    nc.value='▲▼ = rank movement within '+sdName+'   ↑↓ = score change vs previous week.  District Rank = station\u2019s rank across all of Chittoor District.';
+    nc.font={name:'Calibri', size:8, italic:true, color:{argb:'FF7A7A7A'}};
+    nc.alignment={horizontal:'left', vertical:'middle', wrapText:true};
+
+    const buf=await wb.xlsx.writeBuffer();
+    const blob=new Blob([buf], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url; a.download='Chittoor_SD_'+sdName.replace(/[^\w]+/g,'_')+'_PS_Rankings_'+((wk||'').replace(/[^\w.\-]/g,'_')||'week')+'.xlsx';
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),1500);
     return;
   }
   const rows=STATE.sd.recs.map(r=>['#'+r.rank, r.sd, Number(r.score.toFixed(1)), r.grade, r.count,
@@ -2866,6 +2930,71 @@ async function exportSDHeatmapExcel(){
   const url=URL.createObjectURL(blob);
   const a=document.createElement('a');
   a.href=url; a.download='Chittoor_SD_Methodology_Heatmap_'+((wk||'').replace(/[^\w.\-]/g,'_')||'week')+'.xlsx';
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),1500);
+}
+
+/* Export — single Sub-Division's Police-Station × Methodology Category Heatmap
+   (all data currently visible in that SD's heatmap table, A4 landscape, print-ready) */
+async function exportSDDetailHeatmapExcel(sdName){
+  if(typeof ExcelJS==='undefined'){ alert('Excel engine is still loading — please try again in a moment.'); return; }
+  if(!STATE.sd){ computeSD(); }
+  const rec=STATE.sd.byName[sdName];
+  if(!rec){ toast('No stations found for this Sub-Division.'); return; }
+  const ms=rec.sorted, P=STATE.parameters, wk=STATE.config.weekEnding||'';
+  const wb=new ExcelJS.Workbook(); wb.creator='Chittoor Police Smart Policing';
+  const ws=wb.addWorksheet('SD PS Heatmap', {
+    views:[{state:'frozen', xSplit:1, ySplit:4}],
+    pageSetup:{ orientation:'landscape', fitToPage:true, fitToWidth:1, fitToHeight:2,
+                paperSize:9, horizontalCentered:true,
+                margins:{left:0.3,right:0.3,top:0.45,bottom:0.4,header:0.2,footer:0.2} }
+  });
+  const heads=['Police Station','Score', ...P.map((p,i)=>catLabel(p,i))];
+  const ncol=heads.length, firstParamCol=3;
+  const thin=()=>{ const c={style:'thin',color:{argb:'FFD3DBE8'}}; return {top:c,left:c,bottom:c,right:c}; };
+  const argbFromRgb=(s)=>{ const m=String(s).match(/(\d+)\D+(\d+)\D+(\d+)/); if(!m) return 'FFFFFFFF';
+    const h=n=>('0'+parseInt(n,10).toString(16)).slice(-2).toUpperCase(); return 'FF'+h(m[1])+h(m[2])+h(m[3]); };
+
+  ws.mergeCells(1,1,1,ncol);
+  const t=ws.getCell(1,1);
+  t.value='Chittoor Police Smart Policing — '+sdName+' Sub-Division — Methodology Category Heatmap (Normalized 0–100)';
+  t.font={name:'Calibri', size:14, bold:true, color:{argb:'FF16235C'}};
+  t.alignment={horizontal:'center', vertical:'middle'}; ws.getRow(1).height=22;
+
+  ws.mergeCells(2,1,2,ncol);
+  const sub=ws.getCell(2,1);
+  sub.value='Week ending '+wk+'  ·  '+ms.length+' police stations in '+sdName+'  ·  normalized methodology-category scores (0–100)';
+  sub.font={name:'Calibri', size:10, italic:true, color:{argb:'FF566378'}};
+  sub.alignment={horizontal:'center', vertical:'middle'}; ws.getRow(2).height=16; ws.getRow(3).height=4;
+
+  const hr=ws.getRow(4);
+  heads.forEach((h,i)=>{ const c=hr.getCell(i+1); c.value=h;
+    c.font={name:'Calibri', size:9, bold:true, color:{argb:'FFFFFFFF'}};
+    c.fill={type:'pattern', pattern:'solid', fgColor:{argb:'FF1E2D6B'}}; c.border=thin();
+    c.alignment=(i+1>=firstParamCol)? {textRotation:90, horizontal:'center', vertical:'bottom'}
+                                     : {horizontal:(i===0?'left':'center'), vertical:'middle', wrapText:true}; });
+  hr.height=118;
+
+  ms.forEach((r, ri)=>{
+    const vals=[r.name+'  (district #'+r.rank+')', Number(r.score.toFixed(1))+'  '+r.grade,
+                ...P.map(p=>{ const v=r.parameters[p]; return (v==null||isNaN(v))?'—':v; })];
+    const row=ws.addRow(vals); row.height=18.75;
+    row.eachCell({includeEmpty:true}, (c, ci)=>{ c.border=thin(); c.font={name:'Calibri', size:9};
+      c.alignment={horizontal:(ci===1?'left':'center'), vertical:'middle'}; });
+    P.forEach((p, pi)=>{ const v=r.parameters[p]; const cell=row.getCell(firstParamCol+pi);
+      if(v==null||isNaN(v)){ cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFEDEFF3'}};
+        cell.font={name:'Calibri',size:9,color:{argb:'FF9AA7BC'}}; }
+      else { cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:argbFromRgb(heatColorSoft(v))}};
+        cell.font={name:'Calibri',size:9,color:{argb:'FF243049'}}; } });
+  });
+
+  for(let i=0;i<ncol;i++){ const col=ws.getColumn(i+1); col.width=(i===0?26:(i===1?11:4.4)); }
+  ws.pageSetup.printTitlesRow='1:4';
+
+  const buf=await wb.xlsx.writeBuffer();
+  const blob=new Blob([buf], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url; a.download='Chittoor_SD_'+sdName.replace(/[^\w]+/g,'_')+'_PS_Heatmap_'+((wk||'').replace(/[^\w.\-]/g,'_')||'week')+'.xlsx';
   document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),1500);
 }
 
