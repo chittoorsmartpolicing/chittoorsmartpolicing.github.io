@@ -822,11 +822,11 @@ table.sd-rank td.nm{white-space:nowrap}
 
 /* ---- Grade thresholds (single source of truth) ---- */
 const GRADES = [
-  {g:'A', min:62, color:'var(--a)', label:'≥ 62'},
-  {g:'B', min:51, color:'var(--b)', label:'51–61.99'},
-  {g:'C', min:40, color:'var(--c)', label:'40–50.99'},
-  {g:'D', min:30, color:'var(--d)', label:'30–39.99'},
-  {g:'E', min:0,  color:'var(--e)', label:'< 30'},
+  {g:'A', min:70, color:'var(--a)', label:'70–87.50'},
+  {g:'B', min:58, color:'var(--b)', label:'58–69'},
+  {g:'C', min:46, color:'var(--c)', label:'46–57'},
+  {g:'D', min:32, color:'var(--d)', label:'32–45'},
+  {g:'E', min:0,  color:'var(--e)', label:'0–31'},
 ];
 function gradeFor(score){ for(const x of GRADES){ if(score>=x.min) return x.g; } return 'E'; }
 function gradeColor(g){ return (GRADES.find(x=>x.g===g)||GRADES[4]).color; }
@@ -2463,7 +2463,7 @@ function renderMethod(){
         <li><b>eSakshya (SID%)</b> — Scored on final PS compliance. <b>5 marks</b> weightage.</li>
         <li><b>CriMAC</b> — CriMAC alert count must be &ge; cases reported in that PS during the week.</li>
         <li><b>CEIR Score</b> — Performance-based. <b>5 marks</b>.</li>
-        <li><b>eProsecution</b> — <span class="na">Not scored — these reports are auto-generated.</span></li>
+        <li><b>eProsecution</b> — At least <b>one draft charge sheet</b> should be sent to the <b>PP/APP</b> for opinion <b>every week</b> — <b>5 Marks</b>.</li>
         <li><b>FIRs &amp; CS Consumption</b> — <b>2.5 marks</b> for FIR consumption at court + <b>2.5 marks</b> for charge-sheet consumption at court.</li>
         <li><b>eOffice</b> — Scored based on disposal (District Average) and turnaround time. <b>5 marks</b>.</li>
         <li><b>APOLIS</b> — <b>2.5 marks</b> for app downloads in the PS + <b>2.5 marks</b> for APRs in the PS.</li>
@@ -2478,7 +2478,7 @@ function renderMethod(){
         <li>Full marks are awarded where compliance is complete.</li>
         <li>Neutral marks are provided where no activity exists due to non-applicability (e.g. no cases reported, no drones available).</li>
         <li>Performance-based scoring is used for disposal, response time, usage, flying hours, searches, and compliance percentages.</li>
-        <li><b>NATGRID</b>, <b>CCTNS IIF 8–15</b>, <b>eProsecution</b>, and <b>News360AI</b> are currently excluded from scoring.</li>
+        <li><b>NATGRID</b>, <b>CCTNS IIF 8–15</b>, and <b>News360AI</b> are currently excluded from scoring.</li>
       </ul>
     </div></div>
 
