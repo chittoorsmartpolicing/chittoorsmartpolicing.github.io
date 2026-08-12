@@ -1177,7 +1177,7 @@ function parseWorkbook(buf){
         if(v!=null){ if(v>0&&v<=1&&nm.includes('%')) v=Math.round(v*1000)/10; params[nm]=v; total+=v*weights[nm]; wsum+=weights[nm]; }
         else params[nm]=null; });
       const extras={}; extraCols.forEach(c=>{ const v=row[c]; if(v!=null&&v!==''&&v!=='ℹ') extras[header[c]]=v; });
-      const rec={name:String(row[nameIdx]).trim(), parameters:params, score: wsum?Math.round((total/wsum)*10)/10:0};
+      const rec={name:String(row[nameIdx]).trim(), parameters:params, score: wsum?(total/wsum):0};
       if(Object.keys(extras).length) rec.extras=extras;
       stations.push(rec);
     }
@@ -1199,7 +1199,7 @@ function parseWorkbook(buf){
       if(v!=null){ if(v>0&&v<=1&&o.h.includes('%')) v=Math.round(v*1000)/10; params[o.h]=v; }
       else params[o.h]=null; });
     const rec={name:String(row[nameIdx]).trim(), parameters:params};
-    if(scoreIdx>=0){ const sv=toNum(row[scoreIdx]); if(sv!=null) rec.score=Math.round(sv*10)/10; }
+    if(scoreIdx>=0){ const sv=toNum(row[scoreIdx]); if(sv!=null) rec.score=sv; }
     if(deltaIdx>=0) rec.delta=parseDelta(row[deltaIdx]);
     if(gradeIdx>=0 && row[gradeIdx]) rec.grade=String(row[gradeIdx]).trim();
     stations.push(rec);
@@ -1386,10 +1386,10 @@ function computeComposite(data){
       let tot=0,wsum=0;                         // weighted average of present params
       params.forEach(p=>{ const v=st.parameters[p]; const w=W[p]||0;
         if(typeof v==='number'){ tot+=v*w; wsum+=w; } });
-      score=wsum? Math.round((tot/wsum)*10)/10 : 0;
+      score=wsum? (tot/wsum) : 0;
     } else {
       const present=params.filter(p=> typeof st.parameters[p]==='number'); // equal-weight
-      score=present.length? Math.round((present.reduce((a,p)=>a+st.parameters[p],0)/present.length)*10)/10 : 0;
+      score=present.length? (present.reduce((a,p)=>a+st.parameters[p],0)/present.length) : 0;
     }
     return {name:st.name, parameters:st.parameters, extras:st.extras||null, score,
             grade: st.grade || gradeFor(score),
