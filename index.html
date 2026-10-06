@@ -821,14 +821,27 @@ table.sd-rank td.nm{white-space:nowrap}
    ========================================================================= */
 
 /* ---- Grade thresholds (single source of truth) ---- */
-const GRADES = [
+/* Two grade scales, one per methodology version:
+   V1 (weeks before 06.10.2026, 24 params) — max achievable 82.5
+   V2 (new 21-param methodology, from 06.10.2026) — max achievable 80.0
+   The ACTIVE scale follows the week currently selected/displayed. */
+const GRADES_V1 = [
   {g:'A', min:66.00, color:'var(--a)', label:'66.0–82.5 (80–100%)'},
   {g:'B', min:57.75, color:'var(--b)', label:'57.75–65.99 (70–79.99%)'},
   {g:'C', min:49.50, color:'var(--c)', label:'49.50–57.74 (60–69.99%)'},
   {g:'D', min:41.25, color:'var(--d)', label:'41.25–49.49 (50–59.99%)'},
   {g:'E', min:0,     color:'var(--e)', label:'0–41.24 (Below 50%)'},
 ];
-function gradeFor(score){ for(const x of GRADES){ if(score>=x.min) return x.g; } return 'E'; }
+const GRADES_V2 = [
+  {g:'A', min:64.00, color:'var(--a)', label:'64.0–80.0 (80–100%)'},
+  {g:'B', min:56.00, color:'var(--b)', label:'56.00–63.99 (70–79.99%)'},
+  {g:'C', min:48.00, color:'var(--c)', label:'48.00–55.99 (60–69.99%)'},
+  {g:'D', min:40.00, color:'var(--d)', label:'40.00–47.99 (50–59.99%)'},
+  {g:'E', min:0,     color:'var(--e)', label:'0–39.99 (Below 50%)'},
+];
+let GRADES = GRADES_V1;
+function gradeScale(ver){ return ver===2 ? GRADES_V2 : GRADES_V1; }
+function gradeFor(score, ver){ const S = ver ? gradeScale(ver) : GRADES; for(const x of S){ if(score>=x.min) return x.g; } return 'E'; }
 function gradeColor(g){ return (GRADES.find(x=>x.g===g)||GRADES[4]).color; }
 
 /* Map any parameter column → {category, direction, weight} using the official
@@ -837,7 +850,8 @@ function gradeColor(g){ return (GRADES.find(x=>x.g===g)||GRADES[4]).color; }
 function paramMeta(name){
   const n=String(name).toLowerCase();
   // direct/contains match against WEIGHTS_TABLE rows
-  for(const w of WEIGHTS_TABLE){
+  const WT = (typeof STATE!=='undefined' && STATE.methodVer===2) ? WEIGHTS_TABLE_V2 : WEIGHTS_TABLE;
+  for(const w of WT){
     const wn=w[0].toLowerCase();
     if(wn===n || wn.startsWith(n) || n.startsWith(wn.split(' ')[0])) {
       return {cat:w[1], dir:w[4], wt:w[2]};
@@ -882,6 +896,41 @@ const WEIGHTS_TABLE = [
   ['Use Cases 3','UC3',2.5,'Weekly',1],
   ['Use Cases 4','UC4',2.5,'Weekly',1],
 ];
+const WEIGHTS_TABLE_V1 = WEIGHTS_TABLE;
+
+/* NEW methodology (V2) — in force from 06.10.2026, per "Methodology Categories & Weights.xlsx".
+   21 parameters, total 100%. [Parameter, Methodology Category, Weight%, Type, Direction] */
+const METHOD_V2_FROM = '06.10.2026';
+const WEIGHTS_TABLE_V2 = [
+  ['MedLEaPR PME','MedLEaPR PME',2.5,'Weekly',1],
+  ['MedLEaPR MLC','MedLEaPR MLC',2.5,'Weekly',1],
+  ['NATGRID (Gandiva+Sudarshan)','NATGRID',5,'Weekly',1],
+  ['DGP Dashboard','DGP Dashboard',2.5,'Weekly',1],
+  ['CCTNS Overall Forms Entry','CCTNS Overall',5,'Cumulative',1],
+  ['CCTNS Weekly Forms IIF 1-7','CCTNS IIF 1-7',2.5,'Weekly',1],
+  ['Zero FIRs','Zero FIRs',5,'Weekly',1],
+  ['Citizen Portal Pending%','Citizen Portal',5,'Cumulative',1],
+  ['eSakshya SID%','eSakshya SID%',5,'Cumulative',1],
+  ['CEIR Score','CEIR Score',5,'Cumulative',1],
+  ['eProsecution (PS%+Requests)','eProsecution',5,'Weekly',1],
+  ['FIRs & CS Consumed in Court','FIRs & CS Con',5,'Cumulative',1],
+  ['eOffice (Files+Speed)','eOffice',5,'Weekly',1],
+  ['APOLIS (Downloads+APR+ACR)','APOLIS',10,'Cumulative',1],
+  ['APOLIS Files Movement','APOLIS File',5,'Weekly',1],
+  ['CCTV360 Usage','CCTV360 Usage',5,'Weekly',1],
+  ['News360AI','News360AI',5,'Weekly',1],
+  ['eForensicLab','eFSL',5,'Weekly',1],
+  ['eDAR/i-RAD','eDAR',10,'Weekly',1],
+  ['Use Cases 3','UC3',2.5,'Weekly',1],
+  ['Use Cases 4','UC4',2.5,'Weekly',1],
+];
+/* Which methodology a parsed week belongs to: V2 if it carries the eDAR column
+   (only present in the new format), else the previous V1 methodology. */
+function dataVer(data){
+  if(!data) return 1;
+  if(data.methodVer) return data.methodVer;
+  return (data.parameters||[]).some(p=>/\bedar\b|e-?dar|i-?rad/i.test(String(p))) ? 2 : 1;
+}
 
 /* Default per-parameter weights used ONLY when a row has no precomputed Score
    (equal weight across detected parameters). When the source provides Score,
@@ -1104,12 +1153,18 @@ const CANON21=[
   ['Dial112 Resp.Time','Dial112 Resp',-1],['CCTV360 Usage','CCTV360 Usage',1],['News360AI','News360AI',1],
   ['eForensicLab','eFSL',1],['Use Cases 3','UC3',1],['Use Cases 4','UC4',1],
 ];
+const CANON_V1 = CANON21;
+/* NEW (V2) canonical order — matches the column order of the new weekly Excel. */
+const CANON_V2 = WEIGHTS_TABLE_V2.map(r=>[r[0], r[1], r[4]]);
+function canonFor(ver){ return ver===2 ? CANON_V2 : CANON_V1; }
+/* Canon of the week currently displayed (set in recompute). */
+let ACTIVE_CANON = CANON_V1;
 
 /* (6) Resolve category + direction for a parameter by NAME (dynamic params).
    1) exact canon name match  2) positional canon fallback  3) infer from text. */
-const CANON_BYNAME = (function(){ const m={}; CANON21.forEach(c=>{ m[String(c[0]).toLowerCase()]=c; }); return m; })();
+const CANON_BYNAME = (function(){ const m={}; CANON_V1.concat(CANON_V2).forEach(c=>{ m[String(c[0]).toLowerCase()]=c; }); return m; })();
 // Map: full parameter name → Book 2 category label (for table column headers)
-const PARAM_TO_CAT = (function(){ const m={}; CANON21.forEach(c=>{ m[c[0]]=c[1]; }); return m; })();
+const PARAM_TO_CAT = (function(){ const m={}; CANON_V1.concat(CANON_V2).forEach(c=>{ m[c[0]]=c[1]; }); return m; })();
 // Resolve the Book 2 methodology-category label for a (possibly truncated) parameter
 // name. Excel truncates column headers to ~13 chars, so an exact-name lookup misses;
 // STATE.paramCat is built BY POSITION at load time and is the source of truth here.
@@ -1117,14 +1172,16 @@ function catLabel(p, idx){
   // Position is authoritative: the 21 scored columns always arrive in canonical
   // Book 2 order, and truncated Excel headers can collide by name (e.g. two
   // "CCTNS Weekly" columns), so prefer the index when the caller supplies one.
-  if(typeof idx==='number' && idx>=0 && idx<CANON21.length) return CANON21[idx][1];
+  if(typeof idx==='number' && idx>=0 && idx<ACTIVE_CANON.length) return ACTIVE_CANON[idx][1];
   if(typeof STATE!=='undefined' && STATE.paramCat && STATE.paramCat[p]!=null) return STATE.paramCat[p];
   return PARAM_TO_CAT[p] || p;
 }
-function canonInfo(name, pos){
+function canonInfo(name, pos, canon){
+  const C = canon || CANON_V1;
   const key=String(name||'').toLowerCase().trim();
+  if(typeof pos==='number' && canon && pos<C.length) return {cat:C[pos][1], dir:C[pos][2]};
   if(CANON_BYNAME[key]) return {cat:CANON_BYNAME[key][1], dir:CANON_BYNAME[key][2]};
-  if(typeof pos==='number' && pos<CANON21.length) return {cat:CANON21[pos][1], dir:CANON21[pos][2]};
+  if(typeof pos==='number' && pos<C.length) return {cat:C[pos][1], dir:C[pos][2]};
   // infer: response/pending times are lower-is-better
   const lowerBetter=/resp\.?\s*time|response time|pending|delay|turnaround|tat\b/i.test(name);
   // category guess = leading word group before a delimiter
@@ -1162,15 +1219,19 @@ function parseWorkbook(buf){
     /* ---- 21-parameter WEIGHTED layout ---- */
     const nameIdx=0, wts=aoa[wtRow];
     const paramCols=[]; for(let c=1;c<header.length;c++){ if(typeof wts[c]==='number'&&wts[c]>0&&wts[c]<=1) paramCols.push(c); }
+    // NEW methodology (V2, from 06.10.2026) is recognised by its eDAR column;
+    // every older file keeps the previous (V1) 24-parameter canon unchanged.
+    const ver = paramCols.some(c=>/^\s*(e-?dar|i-?rad)/i.test(String(header[c]||''))) ? 2 : 1;
+    const CANON = canonFor(ver);
     const parameters=[], weights={}, meta={};
     paramCols.forEach((c,j)=>{
-      // Use the full canonical name from CANON21 by position when the file header is truncated.
+      // Use the full canonical name from the week's canon by position when the file header is truncated.
       // This ensures parameter names always match the official names from the methodology sheet
       // even when Excel column widths cause truncation (e.g. "NATGRID (Gand" -> full name).
       const hdr=(header[c]||('Param '+(j+1))).trim();
-      const ci=canonInfo(hdr, j);            // category/direction hints (by name, else positional, else inferred)
-      // Use full CANON21 name if position is within canon range (prefer positional over truncated header)
-      const nm=(j<CANON21.length) ? CANON21[j][0] : hdr;
+      const ci=canonInfo(hdr, j, ver===2?CANON_V2:undefined);   // category/direction hints
+      // Use full canonical name if position is within canon range (prefer positional over truncated header)
+      const nm=(j<CANON.length) ? CANON[j][0] : hdr;
       parameters.push(nm);
       weights[nm]=Math.round(+wts[c]*1000)/10; // store as PERCENT
       meta[nm]={cat:ci.cat, dir:ci.dir, wt:Math.round(+wts[c]*1000)/10};
@@ -1189,7 +1250,7 @@ function parseWorkbook(buf){
       if(Object.keys(extras).length) rec.extras=extras;
       stations.push(rec);
     }
-    return {config:weekSafeConfig(), parameters, weights, meta, stations};
+    return {config:weekSafeConfig(), parameters, weights, meta, stations, methodVer:ver};
   }
 
   /* ---- legacy layout: every numeric column = equal-weighted parameter ---- */
@@ -1400,7 +1461,7 @@ function computeComposite(data){
       score=present.length? (present.reduce((a,p)=>a+st.parameters[p],0)/present.length) : 0;
     }
     return {name:st.name, parameters:st.parameters, extras:st.extras||null, score,
-            grade: st.grade || gradeFor(score),
+            grade: st.grade || gradeFor(score, dataVer(data)),
             providedDelta:(typeof st.delta==='number')? st.delta : null};
   });
 }
@@ -1451,11 +1512,16 @@ function recompute(){
   // scored columns always arrive in the canonical Book 2 order, so map each loaded
   // parameter to its category BY POSITION — this is correct even when the Excel
   // header was truncated (e.g. "CCTNS Weekly" → "CCTNS IIF 1-7" / "CCTNS IIF 8-15").
+  // Methodology version follows the displayed week: previous weeks → old (V1)
+  // parameters & grade scale; weeks in the new format → new (V2).
+  STATE.methodVer = dataVer(cur.data);
+  ACTIVE_CANON = canonFor(STATE.methodVer);
+  GRADES = gradeScale(STATE.methodVer);
   STATE.paramCat = {};
   STATE.parameters.forEach((p,i)=>{
-    STATE.paramCat[p] = (i < CANON21.length) ? CANON21[i][1] : (PARAM_TO_CAT[p] || p);
+    STATE.paramCat[p] = (i < ACTIVE_CANON.length) ? ACTIVE_CANON[i][1] : (PARAM_TO_CAT[p] || p);
   });
-  if(STATE.meta){ STATE.parameters.forEach((p,i)=>{ if(STATE.meta[p] && i<CANON21.length) STATE.meta[p].cat = CANON21[i][1]; }); }
+  if(STATE.meta){ STATE.parameters.forEach((p,i)=>{ if(STATE.meta[p] && i<ACTIVE_CANON.length) STATE.meta[p].cat = ACTIVE_CANON[i][1]; }); }
   const params=STATE.parameters;
 
   // current composite + rank
@@ -2414,45 +2480,42 @@ function drawDetail(name){
 }
 
 /* ===================== 6) METHODOLOGY ===================== */
-function renderMethod(){
-  const P=STATE.parameters;
-  const W=STATE.weights, MET=STATE.meta;
-  // Build rows from the actual loaded parameters/weights when available, else the canonical table
-  let table, total;
-  if(W && P.length){
-    table = P.map((p,i)=>{ const m=(MET&&MET[p])?MET[p]:paramMeta(p);
-      // Source Parameter name + Methodology Category straight from Book 2 (CANON21)
-      // by position, so both columns match the methodology sheet exactly even when
-      // the loaded Excel header was truncated (e.g. "CCTNS Weekly" → full name + IIF split).
-      const canon = (i<CANON21.length) ? CANON21[i] : null;
-      const paramName = canon ? canon[0] : p;
-      const catName   = canon ? canon[1] : catLabel(p,i);
-      // [#, param, category, weight%, type(Weekly/Cumulative)]
-      const typeStr = WEIGHTS_TABLE[i] ? WEIGHTS_TABLE[i][3] : (m.dir>0?'Weekly':'Weekly');
-      return [i+1, paramName, catName, (W[p]!=null?W[p]:(WEIGHTS_TABLE[i]?WEIGHTS_TABLE[i][2]:m.wt)), typeStr]; });
-    total = P.reduce((a,p,i)=> a+(W[p]!=null?W[p]:(WEIGHTS_TABLE[i]?WEIGHTS_TABLE[i][2]:0)), 0);
-  } else {
-    table = WEIGHTS_TABLE.map((r,i)=>[i+1, r[0], r[1], r[2], r[3]]);
-    total = WEIGHTS_TABLE.reduce((a,r)=>a+r[2],0);
-  }
-  const wrows = table.map(r=>`<tr>
-    <td class="center" style="color:var(--faint)">${r[0]}</td>
-    <td class="nm">${r[1]}</td>
-    <td class="center"><span class="catpill">${r[2]}</span></td>
-    <td class="center sc" style="color:var(--accent)">${Math.round(r[3]*10)/10}%</td>
-    <td class="center ${r[4]==='Weekly'?'typ-weekly':'typ-cum'}">${r[4]}</td></tr>`).join('');
-
-  $('p-method').innerHTML=`
-    <div class="sec-h"><h2>📋 Methodology</h2><span class="desc">How scores, ranks & movements are produced</span></div>
-
-    <div class="card" style="margin-bottom:16px"><div class="ch"><h3>📊 Methodology Categories &amp; Weights</h3></div>
-      <div class="cb tbl-scroll" style="padding:0"><table><thead><tr>
-        <th class="center">#</th><th>Parameter</th><th class="center">Methodology Category</th>
-        <th class="center">Wt</th><th class="center">Type</th>
-      </tr></thead><tbody>${wrows}
-      <tr class="total-row"><td></td><td>TOTAL</td><td></td><td class="center num">${total.toFixed(1)}%</td><td></td></tr>
-      </tbody></table></div></div>
-
+const METHOD_HOW_V2 = `
+    <div class="card meth" style="margin-bottom:16px"><div class="cb">
+      <h3>How marks are awarded — per parameter</h3>
+      <ol class="mparam">
+        <li><b>MedLEaPR PME</b> — Counts PME cases and checks whether they were updated. Full <b>2.5 marks</b> if all PME completed, or <b>2.5 marks</b> if no cases reported that week.</li>
+        <li><b>MedLEaPR MLC</b> — Counts MLC cases and checks whether they were updated. Full <b>2.5 marks</b> if all MLC completed, or <b>2.5 marks</b> if no cases reported that week.</li>
+        <li><b>NATGRID</b> — <span class="na">Not scored — does not fall under PS category.</span></li>
+        <li><b>DGP Dashboard</b> — <b>2.5 marks</b> if the PS SHO submits remarks (Weekly).</li>
+        <li><b>CCTNS Overall</b> — Scored on if forms per FIR &gt;= Dist Average. <b>5 marks</b> weightage.</li>
+        <li><b>CCTNS IIF 1–7</b> — Scored on forms entered for crimes reported that week (2.5% weightage). If no cases reported during that week, the <b>previous 4 weeks' average</b> is counted.</li>
+        <li><b>Zero FIRs</b> — <b>5 marks</b> if none pending or none reported.</li>
+        <li><b>Citizen Portal</b> — Scored on disposal. <b>5 marks</b> weightage.</li>
+        <li><b>eSakshya (SID%)</b> — Scored on final PS compliance. <b>5 marks</b> weightage.</li>
+        <li><b>CEIR Score</b> — Performance-based. <b>5 marks</b>.</li>
+        <li><b>eProsecution</b> — At least <b>one draft charge sheet</b> should be sent to the <b>PP/APP</b> for opinion <b>every week</b> — <b>5 Marks</b>. (<b>CCS and Mahila PS capped at full marks</b>)</li>
+        <li><b>FIRs &amp; CS Consumption</b> — <b>2.5 marks</b> for FIR consumption at court + <b>2.5 marks</b> for charge-sheet consumption at court.</li>
+        <li><b>eOffice</b> — Scored based on disposal (District Average) and turnaround time. <b>5 marks</b>.</li>
+        <li><b>APOLIS</b> — <b>5 marks</b> for app downloads in the PS + <b>5 marks</b> for APRs in the PS.</li>
+        <li><b>APOLIS File Movement</b> — <span class="na">Not scored — these reports are not generated at district level.</span></li>
+        <li><b>CCTV360 Usage</b> — Web App &amp; Mobile App Login: <b>2.5 + 2.5 = 5 marks</b>. Marks are awarded only if the user logs in to both the Web App and the Mobile App at least once every day.</li>
+        <li><b>News360AI</b> — <span class="na">Not scored — these reports are auto-generated.</span></li>
+        <li><b>eFSL</b> — <b>5 marks</b>. Full marks are awarded if all forensic-related cases are sent to the FSL online. Full marks are also awarded if no forensic-related cases were reported during the previous week.</li>
+        <li><b>eDAR</b> — <b>10 marks</b>. Full marks if no accident case is reported from previous Monday to Sunday. If cases are reported and the <b>eDAR Form 1</b> is updated, full marks; else zero marks.</li>
+        <li><b>UC3</b> — <span class="na">Not scored — these reports are not generated at district level.</span></li>
+        <li><b>UC4</b> — <span class="na">Not scored — these reports are not generated at district level.</span></li>
+      </ol>
+      <h3>Key principles</h3>
+      <ul class="mkey">
+        <li>Full marks are awarded where compliance is complete.</li>
+        <li>Neutral marks are provided where no activity exists due to non-applicability (e.g. no cases reported, no drones available).</li>
+        <li>Performance-based scoring is used for disposal, response time, usage, flying hours, searches, and compliance percentages.</li>
+        <li><b>NATGRID</b>, <b>News360AI</b>, <b>APOLIS File Movement</b>, <b>UC3</b>, and <b>UC4</b> are currently excluded from scoring.</li>
+      </ul>
+    </div></div>
+`;
+const METHOD_HOW_V1 = `
     <div class="card meth" style="margin-bottom:16px"><div class="cb">
       <h3>How marks are awarded — per parameter</h3>
       <ol class="mparam">
@@ -2489,6 +2552,60 @@ function renderMethod(){
         <li><b>NATGRID</b>, <b>CCTNS IIF 8–15</b>, <b>News360AI</b>, <b>UC3</b>, and <b>UC4</b> are currently excluded from scoring.</li>
       </ul>
     </div></div>
+
+`;
+function renderMethod(){
+  const P=STATE.parameters;
+  const W=STATE.weights, MET=STATE.meta;
+  const V2 = STATE.methodVer===2;
+  const wkLbl = (STATE.config && STATE.config.weekEnding) || '';
+  // Build rows from the actual loaded parameters/weights when available, else the canonical table
+  let table, total;
+  if(V2){
+    // NEW methodology — straight from "Methodology Categories & Weights.xlsx"
+    table = WEIGHTS_TABLE_V2.map((r,i)=>[i+1, r[0], r[1], r[2], r[3]]);
+    total = WEIGHTS_TABLE_V2.reduce((a,r)=>a+r[2],0);
+  } else {
+    if(W && P.length){
+      table = P.map((p,i)=>{ const m=(MET&&MET[p])?MET[p]:paramMeta(p);
+        // Source Parameter name + Methodology Category straight from Book 2 (CANON21)
+        // by position, so both columns match the methodology sheet exactly even when
+        // the loaded Excel header was truncated (e.g. "CCTNS Weekly" → full name + IIF split).
+        const canon = (i<CANON21.length) ? CANON21[i] : null;
+        const paramName = canon ? canon[0] : p;
+        const catName   = canon ? canon[1] : catLabel(p,i);
+        // [#, param, category, weight%, type(Weekly/Cumulative)]
+        const typeStr = WEIGHTS_TABLE[i] ? WEIGHTS_TABLE[i][3] : (m.dir>0?'Weekly':'Weekly');
+        return [i+1, paramName, catName, (W[p]!=null?W[p]:(WEIGHTS_TABLE[i]?WEIGHTS_TABLE[i][2]:m.wt)), typeStr]; });
+      total = P.reduce((a,p,i)=> a+(W[p]!=null?W[p]:(WEIGHTS_TABLE[i]?WEIGHTS_TABLE[i][2]:0)), 0);
+    } else {
+      table = WEIGHTS_TABLE.map((r,i)=>[i+1, r[0], r[1], r[2], r[3]]);
+      total = WEIGHTS_TABLE.reduce((a,r)=>a+r[2],0);
+    }
+  }
+  const wrows = table.map(r=>`<tr>
+    <td class="center" style="color:var(--faint)">${r[0]}</td>
+    <td class="nm">${r[1]}</td>
+    <td class="center"><span class="catpill">${r[2]}</span></td>
+    <td class="center sc" style="color:var(--accent)">${Math.round(r[3]*10)/10}%</td>
+    <td class="center ${r[4]==='Weekly'?'typ-weekly':'typ-cum'}">${r[4]}</td></tr>`).join('');
+
+  $('p-method').innerHTML=`
+    <div class="sec-h"><h2>📋 Methodology</h2><span class="desc">How scores, ranks & movements are produced</span></div>
+
+    <div class="note" style="margin-bottom:16px">${V2
+      ? `Showing the <b>new methodology</b> (21 parameters, in force from <b>${METHOD_V2_FROM}</b>) for week <b>${wkLbl}</b>. Select an earlier week in the Legacy Data tab to view the previous methodology.`
+      : `Showing the <b>previous methodology</b> (${P.length||24} parameters) that applied to week <b>${wkLbl}</b>. Weeks from <b>${METHOD_V2_FROM}</b> onwards use the new methodology.`}</div>
+
+    <div class="card" style="margin-bottom:16px"><div class="ch"><h3>📊 Methodology Categories &amp; Weights</h3></div>
+      <div class="cb tbl-scroll" style="padding:0"><table><thead><tr>
+        <th class="center">#</th><th>Parameter</th><th class="center">Methodology Category</th>
+        <th class="center">Wt</th><th class="center">Type</th>
+      </tr></thead><tbody>${wrows}
+      <tr class="total-row"><td></td><td>TOTAL</td><td></td><td class="center num">${total.toFixed(1)}%</td><td></td></tr>
+      </tbody></table></div></div>
+
+${V2 ? METHOD_HOW_V2 : METHOD_HOW_V1}
 
     <div class="grid g2">
       <div class="card"><div class="ch"><h3>🔵 Grade Scale</h3></div><div class="cb">
