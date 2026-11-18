@@ -2632,8 +2632,14 @@ const METHOD_HOW_V1 = `
 function renderMethod(){
   const P=STATE.parameters;
   const W=STATE.weights, MET=STATE.meta;
-  const V3 = STATE.methodVer===3;
-  const V2 = STATE.methodVer===2;
+  // The Methodology tab ALWAYS shows the CURRENT (V3) methodology, rules and grade
+  // scale. An older methodology is shown only when an older week is explicitly
+  // selected in the Legacy Data tab. (Scoring of old weeks is unaffected.)
+  const legacyPick = !!STATE.selectedWeekKey && STATE.methodVer!==3;
+  const showVer = legacyPick ? STATE.methodVer : 3;
+  const V3 = showVer===3;
+  const V2 = showVer===2;
+  const SHOW_GRADES = gradeScale(showVer);
   const wkLbl = (STATE.config && STATE.config.weekEnding) || '';
   // First loaded week in the current (V3) format — shown as the "in force from" week.
   const v3Weeks = (STATE.weeks||[]).filter(w=>!w.isSample && w.data && dataVer(w.data)===3).sort((a,b)=>a.date-b.date);
@@ -2677,7 +2683,7 @@ function renderMethod(){
     <div class="sec-h"><h2>📋 Methodology</h2><span class="desc">How scores, ranks & movements are produced</span></div>
 
     <div class="note" style="margin-bottom:16px">${V3
-      ? `Showing the <b>current methodology</b> (${WEIGHTS_TABLE_V3.length} parameters${v3From?`, in force from week <b>${v3From}</b>`:''}) for week <b>${wkLbl}</b>. Select an earlier week in the Legacy Data tab to view the methodology that applied to it.`
+      ? `Showing the <b>current methodology</b> (${WEIGHTS_TABLE_V3.length} parameters${v3From?`, in force from week <b>${v3From}</b>`:''})${STATE.methodVer===3?` for week <b>${wkLbl}</b>`:''}. All new weekly reports are scored on this methodology; earlier weeks keep the methodology that applied to them (select one in the Legacy Data tab to view it).`
       : V2
       ? `Showing the <b>methodology of 06.10.2026</b> (21 parameters, in force from <b>${METHOD_V2_FROM}</b>) that applied to week <b>${wkLbl}</b>. Newer weeks use the current ${WEIGHTS_TABLE_V3.length}-parameter methodology.`
       : `Showing the <b>previous methodology</b> (${P.length||24} parameters) that applied to week <b>${wkLbl}</b>. Weeks from <b>${METHOD_V2_FROM}</b> onwards use the newer methodologies.`}</div>
@@ -2694,7 +2700,7 @@ ${V3 ? METHOD_HOW_V3 : V2 ? METHOD_HOW_V2 : METHOD_HOW_V1}
 
     <div class="grid g2">
       <div class="card"><div class="ch"><h3>🔵 Grade Scale</h3></div><div class="cb">
-        <div class="gradescale">${GRADES.map(g=>`<span class="gs" style="background:${gradeColorHex(g.g)}${g.g==='C'?';color:#5a3d00':''}">${g.g}: ${g.label}</span>`).join('')}</div></div></div>
+        <div class="gradescale">${SHOW_GRADES.map(g=>`<span class="gs" style="background:${gradeColorHex(g.g)}${g.g==='C'?';color:#5a3d00':''}">${g.g}: ${g.label}</span>`).join('')}</div></div></div>
       <div class="card"><div class="ch"><h3>⚠️ Notes</h3></div><div class="cb">
         <div class="note">Scoring reflects <b>technology-adoption</b> across Smart Policing apps, not crime-outcome data. Ranks, heatmap, trends and grades are computed automatically from the latest published week and compared against the immediately previous week.${isAdmin()?` <br><br><b>Admin:</b> Update each week by replacing <b>data/CTR_PS_WISE_PERFORMACE.xlsx</b> (same column layout) — everything recomputes automatically. To enable Trends &amp; rank-movement, include a <b>Δ</b> column (score change vs previous week).`:``}</div></div></div>
     </div>`;
